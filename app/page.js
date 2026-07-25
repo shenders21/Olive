@@ -112,19 +112,54 @@ function App() {
   const [screen, setScreen] = useState('boot') // boot | checkin | onboarding | venue
   const [userId, setUserId] = useState(null)
   const [venues, setVenues] = useState([])
+  const [located, setLocated] = useState(false)
+  const [locationStatus, setLocationStatus] = useState('idle') // idle | asking | ok | denied | unavailable
   const [venue, setVenue] = useState(null) // current checked-in venue
   const [profile, setProfile] = useState(null)
   const [showPicker, setShowPicker] = useState(false)
   const [matchOverlay, setMatchOverlay] = useState(null) // { other, me, matchId }
 
-  // Boot: create session + fetch venues
+  // Ask for browser geolocation with a hard timeout. Resolves to {lat,lng} or null.
+  const getPosition = () => new Promise((resolve) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setLocationStatus('unavailable'); return resolve(null)
+    }
+    setLocationStatus('asking')
+    let done = false
+    const timer = setTimeout(() => {
+      if (done) return
+      done = true; setLocationStatus('unavailable'); resolve(null)
+    }, 8000)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        if (done) return
+        done = true; clearTimeout(timer)
+        setLocationStatus('ok')
+        resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+      },
+      (e) => {
+        if (done) return
+        done = true; clearTimeout(timer)
+        setLocationStatus(e.code === 1 ? 'denied' : 'unavailable')
+        resolve(null)
+      },
+      { enableHighAccuracy: true, timeout: 7000, maximumAge: 30000 }
+    )
+  })
+
+  const refreshVenues = async (coords) => {
+    const qs = coords ? `?lat=${coords.lat}&lng=${coords.lng}` : ''
+    const vr = await api(`venues${qs}`)
+    setVenues(vr.venues || [])
+    setLocated(!!vr.located)
+  }
+
+  // Boot: create session + fetch venues (with location if available)
   useEffect(() => {
     (async () => {
       try {
         let uid = null
-        if (typeof window !== 'undefined') {
-          uid = localStorage.getItem('ob_userId')
-        }
+        if (typeof window !== 'undefined') uid = localStorage.getItem('ob_userId')
         if (!uid) {
           const r = await api('session/init', { method: 'POST', body: {} })
           uid = r.userId
@@ -132,15 +167,16 @@ function App() {
         }
         setUserId(uid)
 
-        // Try to hydrate profile
         try {
           const pr = await api(`profile/${uid}`)
           if (pr.user && pr.user.firstName) setProfile(pr.user)
         } catch {}
 
-        const vr = await api('venues')
-        setVenues(vr.venues || [])
+        // Kick off location request in parallel with a first venues fetch
+        await refreshVenues(null)
         setScreen('checkin')
+        const coords = await getPosition()
+        if (coords) await refreshVenues(coords)
       } catch (e) {
         toast.error('Could not start session. Retry.')
       }
@@ -183,6 +219,8 @@ function App() {
           <motion.div key="checkin" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             <CheckIn
               venues={venues}
+              located={located}
+              locationStatus={locationStatus}
               showPicker={showPicker}
               setShowPicker={setShowPicker}
               onConfirm={checkIn}
@@ -233,8 +271,20 @@ function App() {
 }
 
 // ---------- Check-in ----------
-function CheckIn({ venues, showPicker, setShowPicker, onConfirm }) {
-  const primary = venues[0]
+function CheckIn({ venues, located, locationStatus, showPicker, setShowPicker, onConfirm }) {
+  // Determine primary candidate: nearest venue that is 'nearby' (within its radius)
+  const nearby = venues.filter(v => v.nearby)
+  const primary = nearby[0] || venues[0]
+  const others = venues.filter(v => v.id !== primary?.id)
+  const showAsAppearsToBe = nearby.length >= 1 && !showPicker
+  const noNearbyMessage = located && nearby.length === 0
+
+  const formatDistance = (d) => {
+    if (d == null) return null
+    if (d < 1000) return `${d}m away`
+    return `${(d / 1000).toFixed(1)}km away`
+  }
+
   return (
     <Shell>
       <BrandHeader />
@@ -242,8 +292,24 @@ function CheckIn({ venues, showPicker, setShowPicker, onConfirm }) {
         Welcome
       </SectionTitle>
 
-      {!showPicker && primary ? (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+      {/* Location status line */}
+      <div className="text-center -mt-4 mb-4 text-[11px] uppercase tracking-[0.2em]">
+        {locationStatus === 'asking' && (
+          <span className="text-olive/50 inline-flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /> Finding your venue</span>
+        )}
+        {locationStatus === 'ok' && nearby.length > 0 && (
+          <span className="text-gold-dark">Located · {nearby.length} nearby</span>
+        )}
+        {locationStatus === 'ok' && nearby.length === 0 && (
+          <span className="text-olive/50">Located · no Olive venues in range</span>
+        )}
+        {(locationStatus === 'denied' || locationStatus === 'unavailable') && (
+          <span className="text-olive/50">Location off · choose your venue below</span>
+        )}
+      </div>
+
+      {showAsAppearsToBe && primary ? (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <div className="rounded-2xl border border-olive/15 bg-cream shadow-[0_1px_0_rgba(61,74,42,0.08)] overflow-hidden">
             <div className="olive-gradient text-cream px-5 py-4 flex items-center gap-3">
               <MapPin className="h-5 w-5 text-gold-light" />
@@ -255,9 +321,14 @@ function CheckIn({ venues, showPicker, setShowPicker, onConfirm }) {
             <div className="px-5 py-4 space-y-1.5">
               <div className="text-sm text-olive/80">{primary.area}</div>
               <div className="text-xs text-olive/60">{primary.address}</div>
-              <div className="flex items-center gap-2 pt-2 text-xs text-olive/70">
-                <span className="h-1.5 w-1.5 rounded-full bg-gold inline-block" />
-                <span>{primary.liveCount} people here right now</span>
+              <div className="flex items-center justify-between pt-2 text-xs text-olive/70">
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-gold inline-block" />
+                  <span>{primary.liveCount} people here right now</span>
+                </div>
+                {primary.distance != null && (
+                  <span className="text-olive/50">{formatDistance(primary.distance)}</span>
+                )}
               </div>
             </div>
             <div className="px-5 pb-5 pt-2 flex flex-col gap-2">
@@ -275,28 +346,49 @@ function CheckIn({ venues, showPicker, setShowPicker, onConfirm }) {
               </button>
             </div>
           </div>
+          {nearby.length > 1 && (
+            <div className="mt-3 text-center text-[11px] text-olive/50">
+              {nearby.length - 1} other Olive {nearby.length - 1 === 1 ? 'venue is' : 'venues are'} within a short walk
+            </div>
+          )}
         </motion.div>
       ) : (
         <div className="space-y-3">
-          <p className="text-center text-sm text-olive/70">Choose the venue you&apos;re in.</p>
+          <p className="text-center text-sm text-olive/70">
+            {noNearbyMessage
+              ? 'No Olive venues within 150m. Pick where you are:'
+              : "Choose the venue you're in."}
+          </p>
           {venues.map(v => (
             <button key={v.id} onClick={() => onConfirm(v)}
-              className="w-full rounded-2xl border border-olive/15 bg-cream px-5 py-4 flex items-center gap-3 hover:border-gold/60 transition-colors text-left">
-              <MapPin className="h-5 w-5 text-olive/60" />
+              className={`w-full rounded-2xl border bg-cream px-5 py-4 flex items-center gap-3 hover:border-gold/60 transition-colors text-left ${v.nearby ? 'border-gold/60' : 'border-olive/15'}`}>
+              <MapPin className={`h-5 w-5 ${v.nearby ? 'text-gold-dark' : 'text-olive/60'}`} />
               <div className="flex-1">
-                <div className="font-serif text-xl leading-tight">{v.name}</div>
-                <div className="text-xs text-olive/60">{v.area} · {v.liveCount} here now</div>
+                <div className="font-serif text-xl leading-tight flex items-center gap-2">
+                  {v.name}
+                  {v.nearby && <span className="text-[10px] uppercase tracking-[0.15em] text-gold-dark">Here</span>}
+                </div>
+                <div className="text-xs text-olive/60">
+                  {v.area} · {v.liveCount} here now
+                  {v.distance != null && <> · {formatDistance(v.distance)}</>}
+                </div>
               </div>
               <ChevronRight className="h-4 w-4 text-olive/40" />
             </button>
           ))}
-          <button onClick={() => setShowPicker(false)} className="w-full text-xs uppercase tracking-[0.15em] text-olive/60 hover:text-olive py-2">
-            Back
-          </button>
+          {showPicker && (
+            <button onClick={() => setShowPicker(false)} className="w-full text-xs uppercase tracking-[0.15em] text-olive/60 hover:text-olive py-2">
+              Back
+            </button>
+          )}
         </div>
       )}
 
-      <div className="pt-12 text-center text-[11px] uppercase tracking-[0.2em] text-olive/40">
+      <div className="pt-8 text-center text-[10px] text-olive/40 max-w-xs mx-auto leading-relaxed">
+        Location is used only to find your venue. It is never stored on our servers.
+      </div>
+
+      <div className="pt-6 text-center text-[11px] uppercase tracking-[0.2em] text-olive/40">
         Real people · Real connections · Be kind, have fun
       </div>
     </Shell>

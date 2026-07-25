@@ -17,9 +17,9 @@ async function getDb() {
 }
 
 const VENUES = [
-  { id: 'alma', name: 'The Alma', area: 'Wandsworth', address: '499 Old York Rd, London SW18 1TF', type: 'pub', active: true },
-  { id: 'ivy', name: 'The Ivy House', area: 'Nunhead', address: '40 Stuart Rd, London SE15 3BE', type: 'pub', active: true },
-  { id: 'sekforde', name: 'The Sekforde', area: 'Clerkenwell', address: '34 Sekforde St, London EC1R 0HA', type: 'pub', active: true },
+  { id: 'alma', name: 'The Alma', area: 'Wandsworth', address: '499 Old York Rd, London SW18 1TF', type: 'pub', active: true, lat: 51.4593, lng: -0.1900, radius: 150 },
+  { id: 'ivy', name: 'The Ivy House', area: 'Nunhead', address: '40 Stuart Rd, London SE15 3BE', type: 'pub', active: true, lat: 51.4676, lng: -0.0512, radius: 150 },
+  { id: 'sekforde', name: 'The Sekforde', area: 'Clerkenwell', address: '34 Sekforde St, London EC1R 0HA', type: 'pub', active: true, lat: 51.5241, lng: -0.1054, radius: 150 },
 ];
 
 const SEED_USERS = [
@@ -42,6 +42,12 @@ const SEED_USERS = [
 async function ensureSeed(db) {
   const vc = await db.collection('venues').countDocuments();
   if (vc === 0) await db.collection('venues').insertMany(VENUES);
+  else {
+    // Idempotent: ensure lat/lng/radius are present on all venues.
+    for (const v of VENUES) {
+      await db.collection('venues').updateOne({ id: v.id }, { $set: { lat: v.lat, lng: v.lng, radius: v.radius } });
+    }
+  }
 
   const uc = await db.collection('users').countDocuments({ isSeed: true });
   if (uc === 0) {
@@ -101,7 +107,25 @@ async function handle(request, { params }) {
         { $group: { _id: '$venueId', c: { $sum: 1 } } }
       ]).toArray();
       const cmap = Object.fromEntries(counts.map(x => [x._id, x.c]));
-      return ok({ venues: venues.map(v => ({ ...v, liveCount: cmap[v.id] || 0 })) });
+      const lat = q.lat ? parseFloat(q.lat) : null;
+      const lng = q.lng ? parseFloat(q.lng) : null;
+      const enriched = venues.map(v => {
+        let distance = null, nearby = false;
+        if (lat != null && lng != null && v.lat != null && v.lng != null) {
+          // Haversine distance in metres
+          const toRad = x => x * Math.PI / 180;
+          const R = 6371000;
+          const dLat = toRad(v.lat - lat);
+          const dLng = toRad(v.lng - lng);
+          const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat)) * Math.cos(toRad(v.lat)) * Math.sin(dLng / 2) ** 2;
+          distance = Math.round(2 * R * Math.asin(Math.sqrt(a)));
+          nearby = distance <= (v.radius || 150);
+        }
+        return { ...v, liveCount: cmap[v.id] || 0, distance, nearby };
+      });
+      // Sort by distance if we have it
+      if (lat != null) enriched.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+      return ok({ venues: enriched, located: lat != null });
     }
 
     if (method === 'POST' && path === 'checkin') {
