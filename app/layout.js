@@ -7,9 +7,9 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swa
 const cormorant = Cormorant_Garamond({ subsets: ['latin'], weight: ['400','500','600','700'], variable: '--font-serif', display: 'swap' })
 
 export const metadata = {
-  title: 'Olive Branch — Meet who is here now',
-  description: 'A quiet way to meet the people already in the room. For pubs, bars and everything in between.',
-  themeColor: '#3D4A2A',
+  title: 'Olive — Meet people in this venue',
+  description: 'A quieter way to meet the people already in the room. For pubs, bars and everything in between.',
+  themeColor: '#1B2018',
 }
 
 export default function RootLayout({ children }) {

@@ -16,13 +16,42 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Checkbox } from '@/components/ui/checkbox'
 
 // ---------- Small primitives ----------
-const OliveLogo = ({ size = 22 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="inline-block">
-    <path d="M12 3c4 3 6 6 6 10s-2 7-6 8c-4-1-6-4-6-8s2-7 6-10z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
-    <path d="M12 3v18" stroke="currentColor" strokeWidth="1.2"/>
-    <path d="M12 9c1.5 1 3 1 4-.5M12 13c-1.5 1-3 1-4-.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+// The sprig sits at the top-right of the "O" — matches the tent-card wordmark.
+const OliveSprig = ({ size = 22, className = '' }) => (
+  <svg width={size * 0.9} height={size} viewBox="0 0 40 44" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    {/* stem */}
+    <path d="M8 40 C 12 28, 20 18, 34 6" stroke="#7A8C5C" strokeWidth="1.6" strokeLinecap="round" fill="none"/>
+    {/* leaves — right side */}
+    <path d="M22 18 C 27 14, 33 14, 36 12 C 33 18, 28 22, 23 22 Z" fill="#8B9668"/>
+    <path d="M15 28 C 20 24, 26 24, 29 22 C 26 28, 21 32, 16 32 Z" fill="#7A8C5C"/>
+    {/* leaves — left side */}
+    <path d="M18 22 C 13 20, 8 22, 6 24 C 10 26, 15 26, 18 24 Z" fill="#98A57A"/>
+    {/* olive berry */}
+    <circle cx="30" cy="14" r="2.2" fill="#556B2F"/>
+    <circle cx="30" cy="14" r="0.8" fill="#7A8C5C" opacity="0.6"/>
   </svg>
 )
+
+// Full wordmark: sprig overlapping the "O" of "Olive"
+const OliveWordmark = ({ size = 'md', dark = false }) => {
+  const sizes = {
+    sm: { text: 'text-xl', sprig: 14, offsetY: '-top-1.5', offsetX: '-left-1' },
+    md: { text: 'text-2xl', sprig: 18, offsetY: '-top-2', offsetX: '-left-1.5' },
+    lg: { text: 'text-4xl', sprig: 28, offsetY: '-top-3', offsetX: '-left-2' },
+  }
+  const s = sizes[size] || sizes.md
+  return (
+    <span className={`relative inline-flex items-baseline font-serif ${s.text} tracking-wide leading-none ${dark ? 'text-cream' : 'text-olive-deep'}`}>
+      <span className="relative inline-block">
+        <span className="relative z-10">O</span>
+        <span className={`absolute ${s.offsetY} ${s.offsetX} z-20 pointer-events-none`}>
+          <OliveSprig size={s.sprig} />
+        </span>
+      </span>
+      <span>live</span>
+    </span>
+  )
+}
 
 const Shell = ({ children, dark }) => (
   <div className={`min-h-screen w-full ${dark ? 'olive-gradient text-cream' : 'paper text-olive-deep'}`}>
@@ -33,9 +62,8 @@ const Shell = ({ children, dark }) => (
 )
 
 const BrandHeader = ({ dark }) => (
-  <div className={`flex items-center justify-center gap-2 pb-6 ${dark ? 'text-cream' : 'text-olive'}`}>
-    <OliveLogo size={20} />
-    <span className="font-serif text-2xl tracking-wide">Olive Branch</span>
+  <div className="flex items-center justify-center pb-6">
+    <OliveWordmark size="md" dark={dark} />
   </div>
 )
 
@@ -269,7 +297,7 @@ function CheckIn({ venues, showPicker, setShowPicker, onConfirm }) {
       )}
 
       <div className="pt-12 text-center text-[11px] uppercase tracking-[0.2em] text-olive/40">
-        Real people · Same room · Real conversations
+        Real people · Real connections · Be kind, have fun
       </div>
     </Shell>
   )
@@ -567,10 +595,7 @@ function VenueFeed({ userId, venue, profile, onLeave, onMatch }) {
     <Shell>
       {/* Header */}
       <div className="flex items-center justify-between pb-4">
-        <div className="flex items-center gap-2 text-olive">
-          <OliveLogo size={18} />
-          <span className="font-serif text-lg">Olive Branch</span>
-        </div>
+        <OliveWordmark size="sm" />
         <button onClick={onLeave} className="flex items-center gap-1 text-xs uppercase tracking-[0.15em] text-olive/60 hover:text-olive">
           <LogOut className="h-3.5 w-3.5" /> Leave
         </button>
@@ -720,7 +745,8 @@ function MatchReveal({ userId, payload, venue, onClose }) {
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-olive-deep/95 flex items-center justify-center px-5"
+      className="fixed inset-0 z-50 flex items-center justify-center px-5"
+      style={{ background: 'linear-gradient(160deg, rgba(19,24,20,0.97) 0%, rgba(11,15,12,0.97) 100%)' }}
     >
       <div className="relative w-full max-w-md">
         <button onClick={onClose} className="absolute top-0 right-0 text-cream/60 hover:text-cream p-2">
