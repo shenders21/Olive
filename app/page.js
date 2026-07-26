@@ -1213,11 +1213,45 @@ function MatchReveal({ userId, payload, venue, onClose, onOpenSafety }) {
     setSending(cue)
     try {
       await api('messages', { method: 'POST', body: { matchId: payload.matchId, fromUserId: userId, cue } })
-      // Optimistic append
-      setMessages(m => [...m, { id: 'tmp', matchId: payload.matchId, fromUserId: userId, toUserId: other?.id, cue, createdAt: Date.now() }])
+      setMessages(m => [...m, { id: 'tmp-' + Date.now(), matchId: payload.matchId, fromUserId: userId, toUserId: other?.id, type: 'cue', cue, createdAt: Date.now() }])
       await loadMessages()
     } catch (e) { toast.error(e.message) }
     finally { setSending(null) }
+  }
+
+  const [text, setText] = useState('')
+  const [sendingText, setSendingText] = useState(false)
+  const [reportingId, setReportingId] = useState(null)
+
+  const myTextCount = messages.filter(m => m.type === 'text' && m.fromUserId === userId).length
+  const remainingText = Math.max(0, 20 - myTextCount)
+
+  const sendText = async () => {
+    const t = text.trim()
+    if (!t || sendingText) return
+    setSendingText(true)
+    try {
+      const r = await api('messages/text', { method: 'POST', body: { matchId: payload.matchId, fromUserId: userId, text: t } })
+      setText('')
+      setMessages(m => [...m, { id: 'tmp-' + Date.now(), matchId: payload.matchId, fromUserId: userId, toUserId: other?.id, type: 'text', text: t, createdAt: Date.now() }])
+      await loadMessages()
+    } catch (e) {
+      // Server returns a friendly message for filter/cap; show it
+      toast.error(e.message || 'Could not send.')
+    }
+    finally { setSendingText(false) }
+  }
+
+  const reportMessage = async (m) => {
+    if (!confirm('Report this message?\n\n' + (m.text || m.cue) + '\n\nYou will not see any more messages from this person.')) return
+    setReportingId(m.id)
+    try {
+      await api('messages/report', { method: 'POST', body: { messageId: m.id, userId, reason: 'inappropriate' } })
+      toast.success('Reported. Thank you.')
+      // Locally hide the reported message
+      setMessages(msgs => msgs.filter(x => x.id !== m.id))
+    } catch (e) { toast.error(e.message) }
+    finally { setReportingId(null) }
   }
 
   const doAction = async (action) => {
@@ -1320,20 +1354,55 @@ function MatchReveal({ userId, payload, venue, onClose, onOpenSafety }) {
           </div>
 
           {messages.length > 0 && (
-            <div ref={threadRef} className="max-h-52 overflow-y-auto no-scrollbar space-y-1.5 mb-3 py-1">
+            <div ref={threadRef} className="max-h-64 overflow-y-auto no-scrollbar space-y-1.5 mb-3 py-1">
               {messages.map((m, i) => {
                 const mine = m.fromUserId === userId
+                const content = m.type === 'text' ? m.text : m.cue
                 return (
-                  <div key={m.id + '-' + i} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[75%] rounded-2xl px-3.5 py-1.5 text-sm ${mine ? 'bg-gold text-olive-deep' : 'bg-cream/15 text-cream'}`}>
-                      {m.cue}
+                  <div key={m.id + '-' + i} className={`group flex items-end gap-1.5 ${mine ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[75%] rounded-2xl px-3.5 py-1.5 text-sm whitespace-pre-wrap break-words ${mine ? 'bg-gold text-olive-deep' : 'bg-cream/15 text-cream'}`}>
+                      {content}
                     </div>
+                    {!mine && !String(m.id).startsWith('tmp') && (
+                      <button
+                        onClick={() => reportMessage(m)}
+                        disabled={reportingId === m.id}
+                        aria-label="Report message"
+                        className="opacity-0 group-hover:opacity-70 hover:opacity-100 text-cream/50 hover:text-cream text-[10px] uppercase tracking-[0.1em] transition"
+                      >
+                        {reportingId === m.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <AlertTriangle className="h-3 w-3" />}
+                      </button>
+                    )}
                   </div>
                 )
               })}
             </div>
           )}
 
+          {/* Text input */}
+          <div className="rounded-full bg-cream/10 border border-cream/15 flex items-center pl-4 pr-1 py-1 mb-3">
+            <input
+              value={text}
+              onChange={e => setText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') sendText() }}
+              placeholder={remainingText === 0 ? 'Message limit reached — go and meet them.' : `Message ${other?.firstName || ''}…`}
+              disabled={remainingText === 0 || sendingText}
+              maxLength={200}
+              className="flex-1 bg-transparent text-cream placeholder:text-cream/40 text-sm outline-none disabled:opacity-60"
+            />
+            <Button
+              onClick={sendText}
+              disabled={!text.trim() || sendingText || remainingText === 0}
+              className="h-8 px-4 rounded-full bg-gold text-olive-deep hover:bg-gold-light text-xs uppercase tracking-[0.15em] disabled:opacity-40"
+            >
+              {sendingText ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Send'}
+            </Button>
+          </div>
+          <div className="text-[10px] uppercase tracking-[0.15em] text-cream/40 text-center -mt-1 mb-4">
+            {remainingText} of 20 messages left · no numbers, links or handles
+          </div>
+
+          {/* Quick cue chips */}
           <div className="space-y-2">
             {CUE_GROUPS.map(g => (
               <div key={g.label}>

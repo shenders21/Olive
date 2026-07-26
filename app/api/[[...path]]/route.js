@@ -47,6 +47,20 @@ const ALLOWED_CUES = [
   "I'll wave", 'Just ordering a drink', 'Give me two minutes', 'On my way now',
 ];
 
+// Text chat rules — free text is allowed inside a match, but with hard limits.
+const MAX_TEXT_MESSAGES_PER_USER_PER_MATCH = 20;
+const MAX_TEXT_LENGTH = 200;
+const BLOCKED_TEXT_PATTERNS = [
+  /https?:\/\/\S+/i,                                       // URLs
+  /\bwww\.\S+/i,                                            // www URLs
+  /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i,                // emails
+  /(?:\+?\d[\s-]?){7,}\d/,                                 // phone-like number sequences (7+ digits)
+  /\b(?:snap|snapchat|insta(?:gram)?|whatsapp|telegram|tiktok|@\w{3,})\b/i, // handle nudges
+];
+function containsBlocked(text) {
+  return BLOCKED_TEXT_PATTERNS.some(p => p.test(text));
+}
+
 async function ensureSeed(db) {
   const vc = await db.collection('venues').countDocuments();
   if (vc === 0) await db.collection('venues').insertMany(VENUES);
@@ -419,7 +433,7 @@ async function handle(request, { params }) {
       if (!match) return err('match not found', 404);
       if (match.userA !== fromUserId && match.userB !== fromUserId) return err('not your match', 403);
       const toUserId = match.userA === fromUserId ? match.userB : match.userA;
-      const msg = { id: uuid(), matchId, fromUserId, toUserId, venueId: match.venueId, cue, createdAt: Date.now() };
+      const msg = { id: uuid(), matchId, fromUserId, toUserId, venueId: match.venueId, type: 'cue', cue, createdAt: Date.now() };
       await db.collection('messages').insertOne(msg);
 
       // If the other side is a seed user, auto-echo a plausible cue back ~2s later so the demo feels alive.
@@ -429,11 +443,81 @@ async function handle(request, { params }) {
         const echo = echoPool[Math.floor(Math.random() * echoPool.length)];
         const echoMsg = {
           id: uuid(), matchId, fromUserId: toUserId, toUserId: fromUserId,
-          venueId: match.venueId, cue: echo, createdAt: Date.now() + 2000,
+          venueId: match.venueId, type: 'cue', cue: echo, createdAt: Date.now() + 2000,
         };
         await db.collection('messages').insertOne(echoMsg);
       }
       return ok({ ok: true, message: { ...msg, _id: undefined } });
+    }
+
+    // ===== Free-text chat (post-match only, capped, filtered) =====
+    if (method === 'POST' && path === 'messages/text') {
+      const { matchId, fromUserId, text } = body;
+      if (!matchId || !fromUserId || typeof text !== 'string') return err('missing fields');
+      const clean = text.trim();
+      if (clean.length === 0) return err('empty');
+      if (clean.length > MAX_TEXT_LENGTH) return err(`Keep it under ${MAX_TEXT_LENGTH} characters.`);
+
+      const match = await db.collection('matches').findOne({ id: matchId });
+      if (!match) return err('match not found', 404);
+      if (match.userA !== fromUserId && match.userB !== fromUserId) return err('not your match', 403);
+
+      if (containsBlocked(clean)) {
+        return NextResponse.json({ error: 'Keep contact details private until you have met.', filtered: true }, { status: 400 });
+      }
+
+      const myCount = await db.collection('messages').countDocuments({ matchId, fromUserId, type: 'text' });
+      if (myCount >= MAX_TEXT_MESSAGES_PER_USER_PER_MATCH) {
+        return NextResponse.json({ error: `You have reached the ${MAX_TEXT_MESSAGES_PER_USER_PER_MATCH} message limit for this match — go and meet them.`, capped: true }, { status: 429 });
+      }
+
+      const toUserId = match.userA === fromUserId ? match.userB : match.userA;
+      const msg = { id: uuid(), matchId, fromUserId, toUserId, venueId: match.venueId, type: 'text', text: clean, createdAt: Date.now() };
+      await db.collection('messages').insertOne(msg);
+
+      // Auto-echo from a seed user so the demo feels alive
+      const other = await db.collection('users').findOne({ id: toUserId });
+      if (other && other.isSeed) {
+        const echoPool = [
+          'Ok, on my way over.',
+          "I'll come find you — wearing black.",
+          'By the bar, next to the till.',
+          'Just ordered — see you in one min.',
+          'Waving now, can you see me?',
+          "Ha, small world — I'm the one in the denim jacket.",
+        ];
+        const echo = echoPool[Math.floor(Math.random() * echoPool.length)];
+        const echoMsg = {
+          id: uuid(), matchId, fromUserId: toUserId, toUserId: fromUserId,
+          venueId: match.venueId, type: 'text', text: echo, createdAt: Date.now() + 2500,
+        };
+        await db.collection('messages').insertOne(echoMsg);
+      }
+
+      const remaining = MAX_TEXT_MESSAGES_PER_USER_PER_MATCH - (myCount + 1);
+      return ok({ ok: true, message: { ...msg, _id: undefined }, remaining });
+    }
+
+    // ===== Report a message =====
+    if (method === 'POST' && path === 'messages/report') {
+      const { messageId, userId, reason } = body;
+      const msg = await db.collection('messages').findOne({ id: messageId });
+      if (!msg) return err('message not found', 404);
+      if (msg.toUserId !== userId) return err('not your message', 403);
+      await db.collection('reports').insertOne({
+        id: uuid(),
+        kind: 'message',
+        messageId,
+        matchId: msg.matchId,
+        reportedUserId: msg.fromUserId,
+        reporterUserId: userId,
+        reason: reason || 'message',
+        content: msg.text || msg.cue || '',
+        createdAt: Date.now(),
+      });
+      // Also mark the message hidden for the reporter
+      await db.collection('messages').updateOne({ id: messageId }, { $set: { hiddenForReporter: true } });
+      return ok({ ok: true });
     }
 
     if (method === 'GET' && path === 'messages') {
