@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import {
   MapPin, Check, ChevronRight, Camera, X, Heart, HandshakeIcon, Briefcase,
-  LogOut, Sparkles, Users, EyeOff, Clock, ArrowRight, Loader2
+  LogOut, Sparkles, Users, EyeOff, Clock, ArrowRight, Loader2, Shield, AlertTriangle
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -96,6 +96,8 @@ function App() {
   const [profile, setProfile] = useState(null)
   const [showPicker, setShowPicker] = useState(false)
   const [matchOverlay, setMatchOverlay] = useState(null) // { other, me, matchId }
+  const [showSafety, setShowSafety] = useState(false)
+  const [showGuidelines, setShowGuidelines] = useState(false)
 
   // Ask for browser geolocation with a hard timeout. Resolves to {lat,lng} or null.
   const getPosition = () => new Promise((resolve) => {
@@ -249,7 +251,7 @@ function App() {
 }
 
 // ---------- Check-in ----------
-function CheckIn({ venues, located, locationStatus, showPicker, setShowPicker, onConfirm }) {
+function CheckIn({ venues, located, locationStatus, showPicker, setShowPicker, onConfirm, onOpenSafety, onOpenGuidelines }) {
   // Determine primary candidate: nearest venue that is 'nearby' (within its radius)
   const nearby = venues.filter(v => v.nearby)
   const primary = nearby[0] || venues[0]
@@ -370,6 +372,16 @@ function CheckIn({ venues, located, locationStatus, showPicker, setShowPicker, o
         Real people · Real connections · Be kind, have fun
       </div>
 
+      <div className="pt-4 flex items-center justify-center gap-3 text-[10px] uppercase tracking-[0.2em]">
+        <button onClick={onOpenSafety} className="flex items-center gap-1 text-olive/50 hover:text-olive">
+          <Shield className="h-3 w-3" /> Ask for Angela
+        </button>
+        <span className="text-olive/20">·</span>
+        <button onClick={onOpenGuidelines} className="text-olive/50 hover:text-olive">
+          Community guidelines
+        </button>
+      </div>
+
       <div className="pt-6 text-center">
         <button
           onClick={() => {
@@ -387,7 +399,7 @@ function CheckIn({ venues, located, locationStatus, showPicker, setShowPicker, o
 }
 
 // ---------- Onboarding ----------
-function Onboarding({ venue, existing, onDone }) {
+function Onboarding({ venue, existing, onDone, onOpenGuidelines, onOpenSafety }) {
   const [step, setStep] = useState(0)
   const [firstName, setFirstName] = useState(existing?.firstName || '')
   const [age, setAge] = useState(existing?.age || 28)
@@ -499,6 +511,11 @@ function Onboarding({ venue, existing, onDone }) {
                   ))}
                 </RadioGroup>
               </div>
+              <p className="text-[11px] text-olive/50 leading-relaxed text-center pt-2">
+                By continuing you agree to our{' '}
+                <button type="button" onClick={onOpenGuidelines} className="underline underline-offset-2 text-olive hover:text-olive-deep">community guidelines</button>.
+                {' '}Feel unsafe? <button type="button" onClick={onOpenSafety} className="underline underline-offset-2 text-olive hover:text-olive-deep">Ask for Angela</button>.
+              </p>
             </div>
           </motion.div>
         )}
@@ -675,7 +692,7 @@ function Onboarding({ venue, existing, onDone }) {
 }
 
 // ---------- Venue Feed ----------
-function VenueFeed({ userId, venue, profile, onLeave, onMatch }) {
+function VenueFeed({ userId, venue, profile, onLeave, onMatch, onOpenSafety }) {
   const enabledModes = (profile?.modes || ['dating']).filter(m => ['dating','friends','networking'].includes(m))
   const [mode, setMode] = useState(enabledModes[0] || 'dating')
   const [feed, setFeed] = useState(null)
@@ -736,9 +753,14 @@ function VenueFeed({ userId, venue, profile, onLeave, onMatch }) {
       {/* Header */}
       <div className="flex items-center justify-between pb-4">
         <OliveWordmark size="sm" />
-        <button onClick={onLeave} className="flex items-center gap-1 text-xs uppercase tracking-[0.15em] text-olive/60 hover:text-olive">
-          <LogOut className="h-3.5 w-3.5" /> Leave
-        </button>
+        <div className="flex items-center gap-1">
+          <button onClick={onOpenSafety} className="flex items-center gap-1 text-xs uppercase tracking-[0.15em] text-olive/60 hover:text-olive px-2 py-1 rounded-full hover:bg-olive/5">
+            <Shield className="h-3.5 w-3.5" /> Safety
+          </button>
+          <button onClick={onLeave} className="flex items-center gap-1 text-xs uppercase tracking-[0.15em] text-olive/60 hover:text-olive px-2 py-1 rounded-full hover:bg-olive/5">
+            <LogOut className="h-3.5 w-3.5" /> Leave
+          </button>
+        </div>
       </div>
 
       {/* Venue banner */}
@@ -1022,15 +1044,147 @@ function RecipientView({ items, onAccept, onDecline, busyId }) {
   )
 }
 
-// ---------- Match reveal ----------
-// Fixed allowlist mirrors backend. The whole language of the "chat".
-const CUE_GROUPS = [
-  { label: 'Where', cues: ['By the bar', 'By the window', 'By the fireplace', 'In the beer garden', 'Upstairs', 'By the door', 'In the snug'] },
-  { label: 'Wearing', cues: ['Wearing black', 'Wearing white', 'Wearing red', 'Wearing blue', 'In a green jumper', 'In a denim jacket'] },
-  { label: 'Signal', cues: ["I'll wave", "I'll come to you", 'Just ordering a drink', 'Give me two minutes', 'On my way now'] },
+// ---------- Safety & Community Guidelines ----------
+const COMMUNITY_GUIDELINES = [
+  'Be kind. Every profile is a real person in the same room as you.',
+  'Real names, real faces, real photographs. No filters that hide who you are.',
+  "Consent matters. A 'Not now' is a complete answer. Never ask twice.",
+  'Never take or share a photograph of someone else here.',
+  'Keep personal details (phone number, address, workplace) private until you have met.',
+  "Don't share Olive photos or profiles outside the app.",
+  'If someone makes you uncomfortable, use Leave or Ask for Angela. Trust your gut.',
+  '18+ only. Anyone under 18 will be removed.',
 ]
 
-function MatchReveal({ userId, payload, venue, onClose }) {
+function SafetySheet({ onClose }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center"
+      style={{ background: 'rgba(11,15,12,0.6)' }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', damping: 24 }}
+        onClick={e => e.stopPropagation()}
+        className="w-full max-w-md bg-cream text-olive-deep rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl"
+      >
+        <div className="olive-gradient text-cream px-6 py-5 flex items-start gap-3">
+          <div className="h-10 w-10 rounded-full bg-gold/20 text-gold-light flex items-center justify-center shrink-0">
+            <Shield className="h-5 w-5" />
+          </div>
+          <div className="flex-1">
+            <div className="text-[10px] uppercase tracking-[0.25em] text-cream/60">If you feel unsafe</div>
+            <div className="font-serif text-2xl leading-tight mt-0.5">Ask for Angela</div>
+          </div>
+          <button onClick={onClose} className="text-cream/60 hover:text-cream p-1">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4 text-sm leading-relaxed">
+          <p>
+            If you ever feel unsafe, uncomfortable or want to leave a situation quietly,
+            go to the bar and say to any member of staff:
+          </p>
+          <div className="rounded-2xl bg-olive/5 border border-gold/40 px-4 py-3 text-center">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-olive/60 mb-1">Say</div>
+            <div className="font-serif text-xl">&ldquo;Is Angela here?&rdquo;</div>
+          </div>
+          <p className="text-olive/80">
+            Staff are trained to help you leave discreetly — they can call you a taxi,
+            walk you to the door, or contact someone on your behalf. Ask for Angela is a
+            UK-wide safety scheme run by pubs and bars.
+          </p>
+          <div className="border-t border-olive/10 pt-4">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-olive/60 mb-2">You can also, at any time</div>
+            <ul className="space-y-1.5 text-olive/80">
+              <li className="flex gap-2"><span className="text-gold-dark">·</span> Tap <span className="font-medium">Leave</span> — your profile disappears from the room instantly.</li>
+              <li className="flex gap-2"><span className="text-gold-dark">·</span> Reply <span className="font-medium">Not now</span> to any match — nothing is sent, no reason given.</li>
+              <li className="flex gap-2"><span className="text-gold-dark">·</span> Meet only at the bar. Never let anyone lead you somewhere quieter.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="px-6 pb-6 pt-2">
+          <Button onClick={onClose} className="w-full h-11 rounded-full bg-olive hover:bg-olive-deep text-cream">
+            Got it
+          </Button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+function GuidelinesSheet({ onClose }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center"
+      style={{ background: 'rgba(11,15,12,0.6)' }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', damping: 24 }}
+        onClick={e => e.stopPropagation()}
+        className="w-full max-w-md bg-cream text-olive-deep rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl"
+      >
+        <div className="olive-gradient text-cream px-6 py-5 flex items-start gap-3">
+          <div className="flex-1">
+            <div className="text-[10px] uppercase tracking-[0.25em] text-cream/60">The house rules</div>
+            <div className="font-serif text-2xl leading-tight mt-0.5">Community guidelines</div>
+          </div>
+          <button onClick={onClose} className="text-cream/60 hover:text-cream p-1">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="px-6 py-5 space-y-2.5 text-sm">
+          {COMMUNITY_GUIDELINES.map((g, i) => (
+            <div key={i} className="flex gap-2.5 items-start">
+              <span className="h-5 w-5 rounded-full bg-olive text-cream text-[10px] flex items-center justify-center shrink-0 mt-px font-medium">{i + 1}</span>
+              <span className="text-olive/85 leading-relaxed">{g}</span>
+            </div>
+          ))}
+          <p className="text-xs text-olive/60 italic pt-3 border-t border-olive/10">
+            By continuing you agree to be part of a room that respects these.
+          </p>
+        </div>
+        <div className="px-6 pb-6 pt-2">
+          <Button onClick={onClose} className="w-full h-11 rounded-full bg-olive hover:bg-olive-deep text-cream">
+            Close
+          </Button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// Small shield icon that sits in a corner and opens the Ask-for-Angela sheet
+function SafetyButton({ onOpen, dark = false, label = false }) {
+  return (
+    <button
+      onClick={onOpen}
+      aria-label="Safety — Ask for Angela"
+      className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.15em] transition ${dark ? 'text-cream/70 hover:text-cream hover:bg-cream/10' : 'text-olive/60 hover:text-olive hover:bg-olive/5'}`}
+    >
+      <Shield className="h-3.5 w-3.5" />
+      {label && <span>Safety</span>}
+    </button>
+  )
+}
+
+// ---------- Match reveal ----------
+// Fixed allowlist mirrors backend. Only public, visible, staffed locations.
+// Nothing that suggests going somewhere private (snug, beer garden, upstairs).
+const CUE_GROUPS = [
+  { label: 'Where', cues: ['By the bar', 'By the front window', 'By the front door', 'Waiting outside the front'] },
+  { label: 'Wearing', cues: ['Wearing black', 'Wearing white', 'Wearing red', 'Wearing blue', 'In a green jumper', 'In a denim jacket'] },
+  { label: 'Signal', cues: ["I'll wave", 'Just ordering a drink', 'Give me two minutes', 'On my way now'] },
+]
+
+function MatchReveal({ userId, payload, venue, onClose, onOpenSafety }) {
   const { other, me, mode = 'dating' } = payload
   const [chosenAction, setChosenAction] = useState(null)
   const [messages, setMessages] = useState([])
@@ -1202,9 +1356,17 @@ function MatchReveal({ userId, payload, venue, onClose }) {
         </motion.div>
 
         <div className="mt-8 text-center">
-          <Button onClick={onClose} className="h-11 px-6 rounded-full bg-cream text-olive-deep hover:bg-cream-dark">
-            Back to the room
-          </Button>
+          <button
+            onClick={onOpenSafety}
+            className="text-[11px] uppercase tracking-[0.2em] text-cream/60 hover:text-cream inline-flex items-center gap-1.5 mb-4"
+          >
+            <Shield className="h-3 w-3" /> Feel unsafe? Ask for Angela
+          </button>
+          <div>
+            <Button onClick={onClose} className="h-11 px-6 rounded-full bg-cream text-olive-deep hover:bg-cream-dark">
+              Back to the room
+            </Button>
+          </div>
         </div>
       </div>
     </motion.div>

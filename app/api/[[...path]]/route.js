@@ -39,11 +39,12 @@ const SEED_USERS = [
   { firstName: 'Felix', age: 34, gender: 'male', bio: 'Writer. Notebook in hand.', photo: 'https://randomuser.me/api/portraits/men/47.jpg', interestedIn: 'female', ageMin: 28, ageMax: 40, venueId: 'sekforde', modes: ['dating','friends'], role: null, partySize: 2 },
 ];
 
-// Allowed vocabulary for safe post-match cues. No free text — this list is the whole language.
+// Allowed vocabulary for safe post-match cues. Only public, visible, staffed areas.
+// No secluded spaces (snug, beer garden, upstairs). No "I'll come to you" (recipient control matters).
 const ALLOWED_CUES = [
-  'By the bar', 'By the window', 'By the fireplace', 'In the beer garden', 'Upstairs', 'By the door', 'In the snug',
+  'By the bar', 'By the front window', 'By the front door', 'Waiting outside the front',
   'Wearing black', 'Wearing white', 'Wearing red', 'Wearing blue', 'In a green jumper', 'In a denim jacket',
-  "I'll wave", "I'll come to you", 'Just ordering a drink', 'Give me two minutes', 'On my way now',
+  "I'll wave", 'Just ordering a drink', 'Give me two minutes', 'On my way now',
 ];
 
 async function ensureSeed(db) {
@@ -424,7 +425,7 @@ async function handle(request, { params }) {
       // If the other side is a seed user, auto-echo a plausible cue back ~2s later so the demo feels alive.
       const other = await db.collection('users').findOne({ id: toUserId });
       if (other && other.isSeed) {
-        const echoPool = ['By the bar', 'By the window', 'Wearing black', "I'll wave", 'Give me two minutes', 'On my way now'];
+        const echoPool = ['By the bar', 'By the front window', 'Wearing black', "I'll wave", 'Give me two minutes', 'On my way now'];
         const echo = echoPool[Math.floor(Math.random() * echoPool.length)];
         const echoMsg = {
           id: uuid(), matchId, fromUserId: toUserId, toUserId: fromUserId,
