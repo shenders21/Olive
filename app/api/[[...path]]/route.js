@@ -56,7 +56,7 @@ const VENUES = [
   { id: 'alma', name: 'The Alma', area: 'Wandsworth', address: '499 Old York Rd, London SW18 1TF', type: 'pub', active: true, lat: 51.4593, lng: -0.1900, radius: 150 },
   { id: 'ivy', name: 'The Ivy House', area: 'Nunhead', address: '40 Stuart Rd, London SE15 3BE', type: 'pub', active: true, lat: 51.4676, lng: -0.0512, radius: 150 },
   { id: 'sekforde', name: 'The Sekforde', area: 'Clerkenwell', address: '34 Sekforde St, London EC1R 0HA', type: 'pub', active: true, lat: 51.5241, lng: -0.1054, radius: 150 },
-  { id: 'purpleowl', name: 'The Purple Owl', area: 'Wandsworth', address: 'Unit 1, Delta Business Park, 10 Smugglers Way, London SW18 1EG', type: 'bar', active: true, lat: 51.4670, lng: -0.1878, radius: 200 },
+  { id: 'purpleowl', name: 'The Purple Owl', area: 'Wandsworth', address: 'Unit 1, Delta Business Park, 10 Smugglers Way, London SW18 1EG', type: 'bar', active: true, lat: 51.460329, lng: -0.191173, radius: 200 },
 ];
 
 const SEED_USERS = [
