@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
 import { v4 as uuid } from 'uuid';
+import webpush from 'web-push';
 
 const MONGO_URL = process.env.MONGO_URL;
 const DB_NAME = process.env.DB_NAME && process.env.DB_NAME !== 'your_database_name'
@@ -14,6 +15,41 @@ async function getDb() {
     await cachedClient.connect();
   }
   return cachedClient.db(DB_NAME);
+}
+
+// ===== Web Push: VAPID key generation + helper =====
+// Keys are generated once and persisted in the `config` collection.
+let vapidReady = null;
+async function ensureVapid(db) {
+  if (vapidReady) return vapidReady;
+  let cfg = await db.collection('config').findOne({ id: 'vapid' });
+  if (!cfg) {
+    const keys = webpush.generateVAPIDKeys();
+    cfg = { id: 'vapid', publicKey: keys.publicKey, privateKey: keys.privateKey, createdAt: Date.now() };
+    await db.collection('config').insertOne(cfg);
+  }
+  webpush.setVapidDetails('mailto:hello@olive.bar', cfg.publicKey, cfg.privateKey);
+  vapidReady = cfg;
+  return cfg;
+}
+
+async function sendPushToUser(db, userId, payload) {
+  try {
+    await ensureVapid(db);
+    const subs = await db.collection('pushSubs').find({ userId }).toArray();
+    await Promise.all(subs.map(async (s) => {
+      try {
+        await webpush.sendNotification(s.subscription, JSON.stringify(payload));
+      } catch (e) {
+        // 410 Gone / 404 = subscription expired; remove it
+        if (e.statusCode === 410 || e.statusCode === 404) {
+          await db.collection('pushSubs').deleteOne({ _id: s._id });
+        }
+      }
+    }));
+  } catch (e) {
+    console.error('push send failed', e.message);
+  }
 }
 
 const VENUES = [
@@ -40,10 +76,9 @@ const SEED_USERS = [
 ];
 
 // Allowed vocabulary for safe post-match cues. Only public, visible, staffed areas.
-// No secluded spaces (snug, beer garden, upstairs). No "I'll come to you" (recipient control matters).
+// Wearing/colour phrases removed — they belong in the chat as editable prompts, not as one-tap chips.
 const ALLOWED_CUES = [
   'By the bar', 'By the front window', 'By the front door', 'Waiting outside the front',
-  'Wearing black', 'Wearing white', 'Wearing red', 'Wearing blue', 'In a green jumper', 'In a denim jacket',
   "I'll wave", 'Just ordering a drink', 'Give me two minutes', 'On my way now',
 ];
 
@@ -211,7 +246,19 @@ async function handle(request, { params }) {
       if (!me) return err('user not found', 404);
 
       const activeSessions = await db.collection('sessions').find({ venueId, active: true }).toArray();
-      const userIds = activeSessions.map(s => s.userId).filter(x => x !== userId);
+      const rawUserIds = activeSessions.map(s => s.userId).filter(x => x !== userId);
+
+      // Exclude anyone I've blocked or who has blocked me (both directions)
+      const [blockedByMe, blocksAgainstMe] = await Promise.all([
+        db.collection('blocks').find({ userId }).toArray(),
+        db.collection('blocks').find({ blockedUserId: userId }).toArray(),
+      ]);
+      const blockedIds = new Set([
+        ...blockedByMe.map(b => b.blockedUserId),
+        ...blocksAgainstMe.map(b => b.userId),
+      ]);
+      const userIds = rawUserIds.filter(x => !blockedIds.has(x));
+
       const usersHere = await db.collection('users').find({ id: { $in: userIds } }, { projection: { _id: 0 } }).toArray();
 
       // === FRIENDS mode ===
@@ -351,6 +398,12 @@ async function handle(request, { params }) {
         await db.collection('likes').updateOne({ id: like.id }, { $set: { status: 'accepted' } });
         const match = { id: uuid(), userA: fromUserId, userB: toUserId, venueId, mode, createdAt: Date.now(), action: null };
         await db.collection('matches').insertOne(match);
+        sendPushToUser(db, fromUserId, {
+          title: 'A quiet match',
+          body: `You matched with ${other.firstName}. Meet by the bar.`,
+          url: '/',
+          tag: 'match',
+        });
         return ok({
           liked: true,
           matched: true,
@@ -369,9 +422,20 @@ async function handle(request, { params }) {
         const match = { id: uuid(), userA: fromUserId, userB: toUserId, venueId, mode, createdAt: Date.now(), action: null };
         await db.collection('matches').insertOne(match);
         const otherU = await db.collection('users').findOne({ id: toUserId }, { projection: { _id: 0 } });
+        const meU = await db.collection('users').findOne({ id: fromUserId }, { projection: { _id: 0 } });
+        sendPushToUser(db, fromUserId, { title: 'A quiet match', body: `You matched with ${otherU?.firstName || 'someone here'}. Meet by the bar.`, tag: 'match' });
+        sendPushToUser(db, toUserId, { title: 'A quiet match', body: `You matched with ${meU?.firstName || 'someone here'}. Meet by the bar.`, tag: 'match' });
         return ok({ liked: true, matched: true, match: { ...match, _id: undefined }, other: otherU });
       }
 
+      // No match yet — for dating mode, this becomes a discreet "someone likes you" notification to the recipient
+      if (mode === 'dating') {
+        sendPushToUser(db, toUserId, {
+          title: 'Someone nearby',
+          body: 'Someone here would like to meet you.',
+          tag: 'like',
+        });
+      }
       return ok({ liked: true, matched: false });
     }
 
@@ -381,10 +445,13 @@ async function handle(request, { params }) {
       if (!like) return err('like not found', 404);
       if (like.toUserId !== userId) return err('not your like', 403);
       await db.collection('likes').updateOne({ id: likeId }, { $set: { status: 'accepted' } });
-      const match = { id: uuid(), userA: like.fromUserId, userB: like.toUserId, venueId: like.venueId, createdAt: Date.now(), action: null };
+      const match = { id: uuid(), userA: like.fromUserId, userB: like.toUserId, venueId: like.venueId, mode: like.mode || 'dating', createdAt: Date.now(), action: null };
       await db.collection('matches').insertOne(match);
       const other = await db.collection('users').findOne({ id: like.fromUserId }, { projection: { _id: 0 } });
       const meUser = await db.collection('users').findOne({ id: userId }, { projection: { _id: 0 } });
+      // Push to both users
+      sendPushToUser(db, userId, { title: 'A quiet match', body: `You matched with ${other?.firstName || 'someone here'}. Meet by the bar.`, tag: 'match' });
+      sendPushToUser(db, like.fromUserId, { title: 'A quiet match', body: `You matched with ${meUser?.firstName || 'someone here'}. Meet by the bar.`, tag: 'match' });
       return ok({ matched: true, match: { ...match, _id: undefined }, other, me: meUser });
     }
 
@@ -439,7 +506,7 @@ async function handle(request, { params }) {
       // If the other side is a seed user, auto-echo a plausible cue back ~2s later so the demo feels alive.
       const other = await db.collection('users').findOne({ id: toUserId });
       if (other && other.isSeed) {
-        const echoPool = ['By the bar', 'By the front window', 'Wearing black', "I'll wave", 'Give me two minutes', 'On my way now'];
+        const echoPool = ['By the bar', 'By the front window', "I'll wave", 'Give me two minutes', 'On my way now'];
         const echo = echoPool[Math.floor(Math.random() * echoPool.length)];
         const echoMsg = {
           id: uuid(), matchId, fromUserId: toUserId, toUserId: fromUserId,
@@ -495,6 +562,11 @@ async function handle(request, { params }) {
       }
 
       const remaining = MAX_TEXT_MESSAGES_PER_USER_PER_MATCH - (myCount + 1);
+      // Notify the recipient (unless they're a seed)
+      if (!other?.isSeed) {
+        const meU = await db.collection('users').findOne({ id: fromUserId }, { projection: { _id: 0 } });
+        sendPushToUser(db, toUserId, { title: meU?.firstName || 'Olive', body: clean, tag: 'msg-' + matchId });
+      }
       return ok({ ok: true, message: { ...msg, _id: undefined }, remaining });
     }
 
@@ -515,8 +587,112 @@ async function handle(request, { params }) {
         content: msg.text || msg.cue || '',
         createdAt: Date.now(),
       });
-      // Also mark the message hidden for the reporter
       await db.collection('messages').updateOne({ id: messageId }, { $set: { hiddenForReporter: true } });
+      return ok({ ok: true });
+    }
+
+    // ===== Block a user (profile-level) — also files a report =====
+    if (method === 'POST' && path === 'blocks') {
+      const { userId, blockedUserId, reason } = body;
+      if (!userId || !blockedUserId) return err('missing');
+      const existing = await db.collection('blocks').findOne({ userId, blockedUserId });
+      if (!existing) {
+        await db.collection('blocks').insertOne({
+          id: uuid(), userId, blockedUserId, reason: reason || null, createdAt: Date.now(),
+        });
+      }
+      // Also log a report for admin review
+      await db.collection('reports').insertOne({
+        id: uuid(), kind: 'block', reportedUserId: blockedUserId, reporterUserId: userId,
+        reason: reason || 'blocked', createdAt: Date.now(),
+      });
+      return ok({ ok: true });
+    }
+
+    if (method === 'GET' && path === 'blocks') {
+      const { userId } = q;
+      if (!userId) return err('userId required');
+      const blocks = await db.collection('blocks').find({ userId }, { projection: { _id: 0 } }).toArray();
+      return ok({ blocks });
+    }
+
+    // ===== Matches inbox with unread counts + last message =====
+    if (method === 'GET' && path === 'matches/inbox') {
+      const { userId } = q;
+      if (!userId) return err('userId required');
+      const list = await db.collection('matches').find({
+        $or: [{ userA: userId }, { userB: userId }]
+      }, { projection: { _id: 0 } }).sort({ createdAt: -1 }).toArray();
+
+      const otherIds = list.map(m => m.userA === userId ? m.userB : m.userA);
+      const others = await db.collection('users').find({ id: { $in: otherIds } }, { projection: { _id: 0 } }).toArray();
+      const omap = Object.fromEntries(others.map(u => [u.id, u]));
+
+      // Last message per match + unread count
+      const enriched = await Promise.all(list.map(async (m) => {
+        const now = Date.now();
+        const last = await db.collection('messages').find(
+          { matchId: m.id, createdAt: { $lte: now } },
+          { projection: { _id: 0 } }
+        ).sort({ createdAt: -1 }).limit(1).toArray();
+        const unread = await db.collection('messages').countDocuments({
+          matchId: m.id,
+          toUserId: userId,
+          createdAt: { $lte: now, $gt: m.lastReadAt?.[userId] || 0 },
+        });
+        return {
+          ...m,
+          other: omap[m.userA === userId ? m.userB : m.userA] || null,
+          lastMessage: last[0] || null,
+          unread,
+        };
+      }));
+
+      const totalUnread = enriched.reduce((s, x) => s + (x.unread || 0), 0);
+      return ok({ matches: enriched, totalUnread });
+    }
+
+    if (method === 'POST' && path === 'matches/read') {
+      const { matchId, userId } = body;
+      if (!matchId || !userId) return err('missing');
+      await db.collection('matches').updateOne({ id: matchId }, { $set: { [`lastReadAt.${userId}`]: Date.now() } });
+      return ok({ ok: true });
+    }
+
+    // ===== Web Push: expose public VAPID key and manage subscriptions =====
+    if (method === 'GET' && path === 'push/vapid') {
+      const cfg = await ensureVapid(db);
+      return ok({ publicKey: cfg.publicKey });
+    }
+
+    if (method === 'POST' && path === 'push/subscribe') {
+      const { userId, subscription } = body;
+      if (!userId || !subscription || !subscription.endpoint) return err('missing');
+      await db.collection('pushSubs').updateOne(
+        { userId, 'subscription.endpoint': subscription.endpoint },
+        { $set: { userId, subscription, updatedAt: Date.now() } },
+        { upsert: true }
+      );
+      return ok({ ok: true });
+    }
+
+    if (method === 'POST' && path === 'push/unsubscribe') {
+      const { userId, endpoint } = body;
+      if (!userId) return err('missing');
+      if (endpoint) await db.collection('pushSubs').deleteOne({ userId, 'subscription.endpoint': endpoint });
+      else await db.collection('pushSubs').deleteMany({ userId });
+      return ok({ ok: true });
+    }
+
+    // Test-send a push (useful for verifying setup)
+    if (method === 'POST' && path === 'push/test') {
+      const { userId } = body;
+      if (!userId) return err('missing');
+      await sendPushToUser(db, userId, {
+        title: 'Olive',
+        body: 'Notifications are on — we\'ll only ping you when it matters.',
+        tag: 'test',
+      });
       return ok({ ok: true });
     }
 

@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import {
   MapPin, Check, ChevronRight, Camera, X, Heart, HandshakeIcon, Briefcase,
-  LogOut, Sparkles, Users, EyeOff, Clock, ArrowRight, Loader2, Shield, AlertTriangle
+  LogOut, Sparkles, Users, EyeOff, Clock, ArrowRight, Loader2, Shield, AlertTriangle,
+  Bell, BellOff, Inbox, Share, Plus, Ban
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -65,6 +66,49 @@ const api = async (path, opts = {}) => {
   return data
 }
 
+// ---------- Push notification helpers ----------
+function urlB64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = typeof window !== 'undefined' ? window.atob(base64) : ''
+  const arr = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i)
+  return arr
+}
+
+async function subscribeToPush(userId) {
+  if (typeof window === 'undefined') return { ok: false, reason: 'ssr' }
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return { ok: false, reason: 'unsupported' }
+  const perm = await Notification.requestPermission()
+  if (perm !== 'granted') return { ok: false, reason: 'denied' }
+  const reg = await navigator.serviceWorker.ready
+  const existing = await reg.pushManager.getSubscription()
+  if (existing) {
+    await api('push/subscribe', { method: 'POST', body: { userId, subscription: existing } })
+    return { ok: true, existing: true }
+  }
+  const { publicKey } = await api('push/vapid')
+  const sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlB64ToUint8Array(publicKey),
+  })
+  await api('push/subscribe', { method: 'POST', body: { userId, subscription: sub } })
+  return { ok: true }
+}
+
+// True if running as an installed PWA (from home screen)
+function isStandalone() {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia?.('(display-mode: standalone)').matches
+    || window.navigator.standalone === true
+}
+// iOS Safari has to use Share -> Add to Home Screen; no beforeinstallprompt available.
+function isIosSafari() {
+  if (typeof window === 'undefined') return false
+  const ua = window.navigator.userAgent
+  return /iP(hone|od|ad)/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua)
+}
+
 // ---------- Photo resize ----------
 async function fileToResizedDataUrl(file, maxSide = 480, quality = 0.72) {
   const reader = new FileReader()
@@ -98,6 +142,47 @@ function App() {
   const [matchOverlay, setMatchOverlay] = useState(null) // { other, me, matchId }
   const [showSafety, setShowSafety] = useState(false)
   const [showGuidelines, setShowGuidelines] = useState(false)
+  const [showInbox, setShowInbox] = useState(false)
+  const [showIosInstall, setShowIosInstall] = useState(false)
+  const [pushGranted, setPushGranted] = useState(false)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setPushGranted(Notification.permission === 'granted')
+    }
+  }, [])
+
+  const enablePush = async () => {
+    if (!userId) return
+    if (isIosSafari() && !isStandalone()) {
+      setShowIosInstall(true)
+      return
+    }
+    try {
+      const r = await subscribeToPush(userId)
+      if (r.ok) {
+        setPushGranted(true)
+        toast.success("Notifications on \u2014 we'll only ping when it matters.")
+      } else if (r.reason === 'denied') {
+        toast.error('Notifications blocked. You can turn them on in Settings.')
+      } else if (r.reason === 'unsupported') {
+        toast.error('This browser does not support notifications.')
+      }
+    } catch (e) { toast.error(e.message) }
+  }
+
+  // Reopen a specific match from the inbox
+  const openMatchFromInbox = async (m) => {
+    setMatchOverlay({
+      other: m.other,
+      me: profile,
+      matchId: m.id,
+      mode: m.mode || 'dating',
+    })
+    try {
+      await api('matches/read', { method: 'POST', body: { matchId: m.id, userId } })
+    } catch {}
+  }
 
   // Ask for browser geolocation with a hard timeout. Resolves to {lat,lng} or null.
   const getPosition = () => new Promise((resolve) => {
@@ -692,11 +777,12 @@ function Onboarding({ venue, existing, onDone, onOpenGuidelines, onOpenSafety })
 }
 
 // ---------- Venue Feed ----------
-function VenueFeed({ userId, venue, profile, onLeave, onMatch, onOpenSafety }) {
+function VenueFeed({ userId, venue, profile, onLeave, onMatch, onOpenSafety, onOpenInbox, onEnablePush, pushGranted, onOpenIosInstall }) {
   const enabledModes = (profile?.modes || ['dating']).filter(m => ['dating','friends','networking'].includes(m))
   const [mode, setMode] = useState(enabledModes[0] || 'dating')
   const [feed, setFeed] = useState(null)
   const [busyId, setBusyId] = useState(null)
+  const [inboxCount, setInboxCount] = useState(0)
 
   const load = async () => {
     try {
@@ -705,7 +791,19 @@ function VenueFeed({ userId, venue, profile, onLeave, onMatch, onOpenSafety }) {
     } catch (e) { toast.error(e.message) }
   }
 
+  const loadInbox = async () => {
+    try {
+      const r = await api(`matches/inbox?userId=${userId}`)
+      setInboxCount(r.matches?.length || 0)
+    } catch {}
+  }
+
   useEffect(() => { setFeed(null); load() }, [venue?.id, mode])
+  useEffect(() => {
+    loadInbox()
+    const t = setInterval(loadInbox, 20000)
+    return () => clearInterval(t)
+  }, [venue?.id])
 
   const likeCandidate = async (c) => {
     setBusyId(c.id)
@@ -751,17 +849,38 @@ function VenueFeed({ userId, venue, profile, onLeave, onMatch, onOpenSafety }) {
   return (
     <Shell>
       {/* Header */}
-      <div className="flex items-center justify-between pb-4">
+      <div className="flex items-center justify-between pb-4 gap-1">
         <OliveWordmark size="sm" />
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
+          {inboxCount > 0 && (
+            <button onClick={onOpenInbox}
+              className="relative flex items-center gap-1 text-xs uppercase tracking-[0.15em] text-olive/60 hover:text-olive px-2 py-1 rounded-full hover:bg-olive/5">
+              <Inbox className="h-3.5 w-3.5" /> {inboxCount}
+            </button>
+          )}
+          {!pushGranted && (
+            <button onClick={onEnablePush}
+              aria-label="Turn on notifications"
+              className="flex items-center gap-1 text-xs uppercase tracking-[0.15em] text-olive/60 hover:text-olive px-2 py-1 rounded-full hover:bg-olive/5">
+              <Bell className="h-3.5 w-3.5" />
+            </button>
+          )}
           <button onClick={onOpenSafety} className="flex items-center gap-1 text-xs uppercase tracking-[0.15em] text-olive/60 hover:text-olive px-2 py-1 rounded-full hover:bg-olive/5">
-            <Shield className="h-3.5 w-3.5" /> Safety
+            <Shield className="h-3.5 w-3.5" />
           </button>
           <button onClick={onLeave} className="flex items-center gap-1 text-xs uppercase tracking-[0.15em] text-olive/60 hover:text-olive px-2 py-1 rounded-full hover:bg-olive/5">
             <LogOut className="h-3.5 w-3.5" /> Leave
           </button>
         </div>
       </div>
+
+      {isIosSafari() && !isStandalone() && (
+        <button onClick={onOpenIosInstall}
+          className="w-full mb-3 rounded-xl border border-gold/40 bg-gold/5 hover:bg-gold/10 px-3 py-2 text-[11px] text-olive-deep/80 flex items-center justify-center gap-2 transition">
+          <Share className="h-3.5 w-3.5" />
+          <span>Add Olive to your home screen for notifications</span>
+        </button>
+      )}
 
       {/* Venue banner */}
       <div className="rounded-2xl olive-gradient text-cream px-5 py-4 mb-4 shadow-sm">
@@ -1175,21 +1294,159 @@ function SafetyButton({ onOpen, dark = false, label = false }) {
   )
 }
 
+// ---------- Matches Inbox ----------
+function MatchesInboxSheet({ userId, onOpenMatch, onClose }) {
+  const [inbox, setInbox] = useState(null)
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const r = await api(`matches/inbox?userId=${userId}`)
+        if (mounted) setInbox(r)
+      } catch {}
+    })()
+    return () => { mounted = false }
+  }, [userId])
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center"
+      style={{ background: 'rgba(11,15,12,0.6)' }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', damping: 24 }}
+        onClick={e => e.stopPropagation()}
+        className="w-full max-w-md bg-cream text-olive-deep rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl max-h-[85vh] flex flex-col"
+      >
+        <div className="olive-gradient text-cream px-6 py-4 flex items-center gap-3">
+          <div className="flex-1">
+            <div className="text-[10px] uppercase tracking-[0.25em] text-cream/60">Your matches tonight</div>
+            <div className="font-serif text-2xl">Matches</div>
+          </div>
+          <button onClick={onClose} className="text-cream/60 hover:text-cream p-1"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2">
+          {!inbox && <div className="text-center py-10 text-olive/50"><Loader2 className="h-5 w-5 animate-spin inline" /></div>}
+          {inbox && inbox.matches.length === 0 && (
+            <div className="text-center py-10 text-olive/60">
+              <p className="font-serif text-lg text-olive">No matches yet.</p>
+              <p className="text-sm mt-1">They&apos;ll show up here when they happen.</p>
+            </div>
+          )}
+          {inbox?.matches.map(m => (
+            <button key={m.id}
+              onClick={() => { onOpenMatch(m); onClose() }}
+              className="w-full text-left flex items-center gap-3 p-3 rounded-2xl hover:bg-olive/5 transition"
+            >
+              {m.other?.photo
+                ? <img src={m.other.photo} alt="" className="h-12 w-12 rounded-full object-cover" />
+                : <div className="h-12 w-12 rounded-full bg-olive/10" />}
+              <div className="flex-1 min-w-0">
+                <div className="font-serif text-lg leading-tight flex items-center gap-2">
+                  {m.other?.firstName || 'Someone'}, {m.other?.age || ''}
+                  <span className="text-[10px] uppercase tracking-[0.15em] text-gold-dark bg-gold/10 px-1.5 py-0.5 rounded-full">
+                    {m.mode || 'dating'}
+                  </span>
+                </div>
+                <div className="text-xs text-olive/60 truncate">
+                  {m.lastMessage
+                    ? (m.lastMessage.text || m.lastMessage.cue)
+                    : 'Matched. Meet by the bar.'}
+                </div>
+              </div>
+              {m.unread > 0 && (
+                <div className="h-6 min-w-6 px-1.5 rounded-full bg-gold text-olive-deep text-xs font-medium flex items-center justify-center">
+                  {m.unread}
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+function IosInstallSheet({ onClose }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center"
+      style={{ background: 'rgba(11,15,12,0.6)' }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', damping: 24 }}
+        onClick={e => e.stopPropagation()}
+        className="w-full max-w-md bg-cream text-olive-deep rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl"
+      >
+        <div className="olive-gradient text-cream px-6 py-4 flex items-center gap-3">
+          <div className="flex-1">
+            <div className="text-[10px] uppercase tracking-[0.25em] text-cream/60">Put Olive on your home screen</div>
+            <div className="font-serif text-2xl mt-0.5">One tap next time</div>
+          </div>
+          <button onClick={onClose} className="text-cream/60 hover:text-cream p-1"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="px-6 py-5 space-y-3 text-sm text-olive/85">
+          <p>To install Olive on your iPhone and get notifications:</p>
+          <ol className="space-y-2 pl-2">
+            <li className="flex gap-3 items-start">
+              <span className="h-6 w-6 rounded-full bg-olive text-cream text-xs flex items-center justify-center shrink-0 font-medium">1</span>
+              <span>Tap the <Share className="h-3.5 w-3.5 inline mx-1" /><strong>Share</strong> button at the bottom of Safari.</span>
+            </li>
+            <li className="flex gap-3 items-start">
+              <span className="h-6 w-6 rounded-full bg-olive text-cream text-xs flex items-center justify-center shrink-0 font-medium">2</span>
+              <span>Scroll and tap <Plus className="h-3.5 w-3.5 inline mx-1" /><strong>Add to Home Screen</strong>.</span>
+            </li>
+            <li className="flex gap-3 items-start">
+              <span className="h-6 w-6 rounded-full bg-olive text-cream text-xs flex items-center justify-center shrink-0 font-medium">3</span>
+              <span>Open Olive from your home screen — that&apos;s the version that can send you notifications.</span>
+            </li>
+          </ol>
+          <p className="text-xs text-olive/60 italic pt-2">Then you can put your phone in your pocket and enjoy the pub.</p>
+        </div>
+        <div className="px-6 pb-6 pt-2">
+          <Button onClick={onClose} className="w-full h-11 rounded-full bg-olive hover:bg-olive-deep text-cream">Got it</Button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 // ---------- Match reveal ----------
 // Fixed allowlist mirrors backend. Only public, visible, staffed locations.
-// Nothing that suggests going somewhere private (snug, beer garden, upstairs).
+// Clothing/colour prompts live in the chat input as editable hints, not as one-tap chips.
 const CUE_GROUPS = [
   { label: 'Where', cues: ['By the bar', 'By the front window', 'By the front door', 'Waiting outside the front'] },
-  { label: 'Wearing', cues: ['Wearing black', 'Wearing white', 'Wearing red', 'Wearing blue', 'In a green jumper', 'In a denim jacket'] },
   { label: 'Signal', cues: ["I'll wave", 'Just ordering a drink', 'Give me two minutes', 'On my way now'] },
 ]
+
+// Suggested clothing hints — tapping one pre-fills the chat input so the user can edit before sending.
+const CLOTHING_HINTS = ['black', 'white', 'red', 'blue', 'a denim jacket', 'a green jumper', 'a stripey top']
 
 function MatchReveal({ userId, payload, venue, onClose, onOpenSafety }) {
   const { other, me, mode = 'dating' } = payload
   const [chosenAction, setChosenAction] = useState(null)
   const [messages, setMessages] = useState([])
   const [sending, setSending] = useState(null)
+  const [blocking, setBlocking] = useState(false)
   const threadRef = useRef(null)
+
+  const blockAndReport = async () => {
+    if (!other?.id) return
+    if (!confirm(`Block and report ${other.firstName || 'this person'}?\n\nYou will not see each other again. A report will be sent for review.`)) return
+    setBlocking(true)
+    try {
+      await api('blocks', { method: 'POST', body: { userId, blockedUserId: other.id, reason: 'match_reveal' } })
+      toast.success('Blocked. They will not appear again.')
+      onClose()
+    } catch (e) { toast.error(e.message) }
+    finally { setBlocking(false) }
+  }
 
   const loadMessages = async () => {
     try {
@@ -1398,8 +1655,25 @@ function MatchReveal({ userId, payload, venue, onClose, onOpenSafety }) {
               {sendingText ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Send'}
             </Button>
           </div>
-          <div className="text-[10px] uppercase tracking-[0.15em] text-cream/40 text-center -mt-1 mb-4">
+          <div className="text-[10px] uppercase tracking-[0.15em] text-cream/40 text-center -mt-1 mb-3">
             {remainingText} of 20 messages left · no numbers, links or handles
+          </div>
+
+          {/* Clothing hints — tap to pre-fill the input, edit before sending */}
+          <div className="flex flex-wrap items-center gap-1.5 mb-4">
+            <span className="text-[10px] uppercase tracking-[0.15em] text-cream/40 mr-1">Wearing:</span>
+            {CLOTHING_HINTS.map(h => (
+              <button
+                key={h}
+                onClick={() => {
+                  const label = h.startsWith('a ') ? `In ${h}, ` : `Wearing ${h}, `
+                  setText(prev => (prev.trim().length ? prev + ' ' + label : label))
+                }}
+                className="rounded-full border border-cream/15 bg-cream/5 hover:bg-cream/15 px-2.5 py-1 text-[11px] text-cream/80 transition"
+              >
+                {h}
+              </button>
+            ))}
           </div>
 
           {/* Quick cue chips */}
@@ -1425,12 +1699,22 @@ function MatchReveal({ userId, payload, venue, onClose, onOpenSafety }) {
         </motion.div>
 
         <div className="mt-8 text-center">
-          <button
-            onClick={onOpenSafety}
-            className="text-[11px] uppercase tracking-[0.2em] text-cream/60 hover:text-cream inline-flex items-center gap-1.5 mb-4"
-          >
-            <Shield className="h-3 w-3" /> Feel unsafe? Ask for Angela
-          </button>
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <button
+              onClick={onOpenSafety}
+              className="text-[11px] uppercase tracking-[0.2em] text-cream/60 hover:text-cream inline-flex items-center gap-1.5"
+            >
+              <Shield className="h-3 w-3" /> Ask for Angela
+            </button>
+            <span className="text-cream/20">·</span>
+            <button
+              onClick={blockAndReport}
+              disabled={blocking}
+              className="text-[11px] uppercase tracking-[0.2em] text-cream/50 hover:text-cream inline-flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {blocking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Ban className="h-3 w-3" />} Block &amp; report
+            </button>
+          </div>
           <div>
             <Button onClick={onClose} className="h-11 px-6 rounded-full bg-cream text-olive-deep hover:bg-cream-dark">
               Back to the room
