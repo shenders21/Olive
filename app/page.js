@@ -391,6 +391,19 @@ function CheckIn({ venues, located, locationStatus, showPicker, setShowPicker, o
       <div className="pt-6 text-center text-[11px] uppercase tracking-[0.2em] text-olive/40">
         Real people · Real connections · Be kind, have fun
       </div>
+
+      <div className="pt-6 text-center">
+        <button
+          onClick={() => {
+            if (typeof window === 'undefined') return
+            try { localStorage.clear() } catch {}
+            window.location.reload()
+          }}
+          className="text-[10px] uppercase tracking-[0.2em] text-olive/40 hover:text-olive underline-offset-4 hover:underline"
+        >
+          Start fresh
+        </button>
+      </div>
     </Shell>
   )
 }
