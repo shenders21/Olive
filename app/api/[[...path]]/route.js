@@ -56,6 +56,7 @@ const VENUES = [
   { id: 'alma', name: 'The Alma', area: 'Wandsworth', address: '499 Old York Rd, London SW18 1TF', type: 'pub', active: true, lat: 51.4593, lng: -0.1900, radius: 150 },
   { id: 'ivy', name: 'The Ivy House', area: 'Nunhead', address: '40 Stuart Rd, London SE15 3BE', type: 'pub', active: true, lat: 51.4676, lng: -0.0512, radius: 150 },
   { id: 'sekforde', name: 'The Sekforde', area: 'Clerkenwell', address: '34 Sekforde St, London EC1R 0HA', type: 'pub', active: true, lat: 51.5241, lng: -0.1054, radius: 150 },
+  { id: 'purpleowl', name: 'The Purple Owl', area: 'Wandsworth', address: 'Unit 1, Delta Business Park, 10 Smugglers Way, London SW18 1EG', type: 'bar', active: true, lat: 51.4670, lng: -0.1878, radius: 200 },
 ];
 
 const SEED_USERS = [
@@ -73,6 +74,10 @@ const SEED_USERS = [
   { firstName: 'Nora', age: 33, gender: 'female', bio: 'Sommelier. Ask me for a recommendation.', photo: 'https://randomuser.me/api/portraits/women/90.jpg', interestedIn: 'male', ageMin: 30, ageMax: 42, venueId: 'sekforde', modes: ['dating','networking','friends'], role: 'Sommelier & wine writer', partySize: 1 },
   { firstName: 'Ethan', age: 31, gender: 'male', bio: 'Engineer. Long day. Pint of Guinness.', photo: 'https://randomuser.me/api/portraits/men/11.jpg', interestedIn: 'female', ageMin: 26, ageMax: 36, venueId: 'sekforde', modes: ['dating','networking'], role: 'Software engineer at a fintech', partySize: null },
   { firstName: 'Felix', age: 34, gender: 'male', bio: 'Writer. Notebook in hand.', photo: 'https://randomuser.me/api/portraits/men/47.jpg', interestedIn: 'female', ageMin: 28, ageMax: 40, venueId: 'sekforde', modes: ['dating','friends'], role: null, partySize: 2 },
+  { firstName: 'Ruby', age: 27, gender: 'female', bio: 'In the corner with a friend.', photo: 'https://randomuser.me/api/portraits/women/23.jpg', interestedIn: 'male', ageMin: 26, ageMax: 36, venueId: 'purpleowl', modes: ['dating','friends'], role: null, partySize: 2 },
+  { firstName: 'Zara', age: 30, gender: 'female', bio: 'Cocktail in hand. First time here.', photo: 'https://randomuser.me/api/portraits/women/85.jpg', interestedIn: 'male', ageMin: 28, ageMax: 40, venueId: 'purpleowl', modes: ['dating','networking'], role: 'PR at a design agency', partySize: null },
+  { firstName: 'Max', age: 29, gender: 'male', bio: 'Live music tonight — first pint.', photo: 'https://randomuser.me/api/portraits/men/29.jpg', interestedIn: 'female', ageMin: 24, ageMax: 34, venueId: 'purpleowl', modes: ['dating'], role: null, partySize: null },
+  { firstName: 'Leo', age: 32, gender: 'male', bio: 'Green shirt, brown boots.', photo: 'https://randomuser.me/api/portraits/men/54.jpg', interestedIn: 'female', ageMin: 26, ageMax: 38, venueId: 'purpleowl', modes: ['dating','networking'], role: 'Product manager, fintech', partySize: null },
 ];
 
 // Allowed vocabulary for safe post-match cues. Only public, visible, staffed areas.
@@ -97,20 +102,21 @@ function containsBlocked(text) {
 }
 
 async function ensureSeed(db) {
-  const vc = await db.collection('venues').countDocuments();
-  if (vc === 0) await db.collection('venues').insertMany(VENUES);
-  else {
-    // Idempotent: ensure lat/lng/radius are present on all venues.
-    for (const v of VENUES) {
-      await db.collection('venues').updateOne({ id: v.id }, { $set: { lat: v.lat, lng: v.lng, radius: v.radius } });
-    }
+  // Upsert every venue (adds new venues on deploy, keeps existing ones fresh)
+  for (const v of VENUES) {
+    await db.collection('venues').updateOne(
+      { id: v.id },
+      { $set: v },
+      { upsert: true }
+    );
   }
 
-  const uc = await db.collection('users').countDocuments({ isSeed: true });
-  if (uc === 0) {
-    const now = Date.now();
-    const seeded = SEED_USERS.map(u => ({
-      id: uuid(),
+  // Upsert every seed user + ensure they have an active session at their venue
+  const now = Date.now();
+  for (const u of SEED_USERS) {
+    const key = { firstName: u.firstName, isSeed: true, _seedVenue: u.venueId };
+    const existing = await db.collection('users').findOne(key);
+    const profile = {
       firstName: u.firstName,
       age: u.age,
       gender: u.gender,
@@ -121,29 +127,22 @@ async function ensureSeed(db) {
       friendProfile: u.partySize ? { partySize: u.partySize } : null,
       networkingProfile: u.role ? { role: u.role } : null,
       isSeed: true,
-      createdAt: now,
       _seedVenue: u.venueId,
-    }));
-    await db.collection('users').insertMany(seeded);
-    const sessions = seeded.map(u => ({
-      id: uuid(),
-      userId: u.id,
-      venueId: u._seedVenue,
-      active: true,
-      startedAt: now,
-    }));
-    await db.collection('sessions').insertMany(sessions);
-  } else {
-    // Idempotent migration: ensure existing seed users have modes/friend/networking profiles
-    for (const u of SEED_USERS) {
-      await db.collection('users').updateOne(
-        { firstName: u.firstName, isSeed: true },
-        { $set: {
-            modes: u.modes || ['dating'],
-            friendProfile: u.partySize ? { partySize: u.partySize } : null,
-            networkingProfile: u.role ? { role: u.role } : null,
-          } }
-      );
+    };
+    let userId;
+    if (existing) {
+      await db.collection('users').updateOne({ id: existing.id }, { $set: profile });
+      userId = existing.id;
+    } else {
+      userId = uuid();
+      await db.collection('users').insertOne({ ...profile, id: userId, createdAt: now });
+    }
+    // Ensure they have an active session at their venue
+    const sess = await db.collection('sessions').findOne({ userId, venueId: u.venueId, active: true });
+    if (!sess) {
+      await db.collection('sessions').insertOne({
+        id: uuid(), userId, venueId: u.venueId, active: true, startedAt: now,
+      });
     }
   }
 }
