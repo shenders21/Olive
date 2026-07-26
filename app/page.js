@@ -596,6 +596,34 @@ function Onboarding({ venue, existing, onDone, onOpenGuidelines, onOpenSafety })
                   ))}
                 </RadioGroup>
               </div>
+              <AnimatePresence>
+                {gender === 'female' && (
+                  <motion.div
+                    key="female-privacy-note"
+                    initial={{ opacity: 0, y: -6, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -6, height: 0 }}
+                    transition={{ duration: 0.25 }}
+                    data-testid="female-privacy-note"
+                    className="overflow-hidden"
+                  >
+                    <div className="rounded-2xl border border-gold/40 bg-gold/5 p-4 flex items-start gap-3">
+                      <div className="h-8 w-8 rounded-full bg-olive text-cream flex items-center justify-center shrink-0">
+                        <Shield className="h-4 w-4" />
+                      </div>
+                      <div className="text-sm text-olive-deep/90 leading-snug">
+                        <div className="font-serif text-base text-olive-deep leading-tight mb-1">
+                          You are anonymous to men here
+                        </div>
+                        <p>
+                          Men can&apos;t browse women. They only see your profile after you have said hello first —
+                          <span className="italic"> every match starts with you</span>.
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <p className="text-[11px] text-olive/50 leading-relaxed text-center pt-2">
                 By continuing you agree to our{' '}
                 <button type="button" onClick={onOpenGuidelines} className="underline underline-offset-2 text-olive hover:text-olive-deep">community guidelines</button>.

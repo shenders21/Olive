@@ -113,6 +113,77 @@ user_problem_statement: |
   6. Push notifications — added VAPID key generation, /api/push/vapid, /api/push/subscribe, /api/push/unsubscribe endpoints. Bell icon on venue feed requests permission and subscribes. Push triggered on new like (recipient), new match (both users), and new text message.
 
 frontend:
+  - task: "Female-privacy explainer note on gender selection"
+    implemented: true
+    working: true
+    file: "/app/app/page.js (Onboarding, 'name' step, inside AnimatePresence keyed 'female-privacy-note')"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: |
+            User asked: "when you click your a girl, on the dating version, it should then pop up under and say 'girls are anonymous to men until you like them first, you can take the first move for safety' or something along those lines"
+            
+            Implementation: added a soft gold-bordered info panel that appears IMMEDIATELY BELOW the gender selector in Onboarding step 1 ("The basics") whenever the selected gender is 'female'. It animates in (opacity + height + slight Y translate) and animates out cleanly when the gender is changed to male or non-binary. It contains a small olive shield icon on the left, a serif title "You are anonymous to men here", and a body sentence: "Men can't browse women. They only see your profile after you have said hello first — every match starts with you."
+            
+            The panel has data-testid="female-privacy-note" for reliable selection.
+            
+            To reproduce & verify:
+            1. Load the app, grant geolocation (lat=51.4593 lng=-0.19), tap "Yes, I'm at The Alma"
+            2. Onboarding step 1 opens. Type a first name.
+            3. Initially gender defaults to "female" — the panel SHOULD BE VISIBLE below the gender pills.
+            4. Tap "male" — panel should DISAPPEAR with animation.
+            5. Tap "non-binary" — panel should STAY HIDDEN.
+            6. Tap "female" again — panel should REAPPEAR.
+            7. Confirm the panel text contains: "anonymous to men" and "every match starts with you" (or exact copy above).
+            8. Confirm it visually sits above the "By continuing you agree to community guidelines..." line and below the three gender pills.
+        - working: true
+          agent: "testing"
+          comment: |
+            ✅ FEATURE FULLY VERIFIED - All tests passed!
+            
+            Comprehensive testing completed with automated Playwright scripts:
+            
+            TEST A - Female pre-selected → panel visible: ✅ PASS
+            - Gender defaults to "female" on page load
+            - Privacy panel with data-testid="female-privacy-note" is visible
+            - Panel contains correct text: "You are anonymous to men here"
+            - Panel contains: "Men can't browse women. They only see your profile after you have said hello first — every match starts with you."
+            
+            TEST B - Toggle male → panel hides: ✅ PASS
+            - Clicking male radio button changes state correctly (male=checked, female=unchecked)
+            - Privacy panel correctly disappears (is_visible=false)
+            - Animation completes smoothly
+            
+            TEST C - Toggle non-binary → panel stays hidden: ✅ PASS
+            - Clicking non-binary radio button changes state correctly
+            - Privacy panel remains hidden (does not appear for non-binary)
+            
+            TEST D - Toggle back to female → panel reappears: ✅ PASS
+            - Clicking female radio button again changes state correctly
+            - Privacy panel reappears with smooth animation
+            - Panel content remains correct
+            
+            TEST E - Visual placement: ✅ PASS
+            - Panel correctly positioned between gender selector (y=383) and community guidelines text (y=609)
+            - Panel y-position: 473 (properly centered between the two elements)
+            - Visual hierarchy is correct
+            
+            TEST F - Screenshot verification: ✅ PASS
+            - Screenshots captured showing panel in all states
+            - Visual design matches specification (gold border, shield icon, serif title)
+            
+            Implementation quality:
+            - AnimatePresence with proper enter/exit animations (250ms duration)
+            - Correct conditional rendering based on gender === 'female'
+            - Proper data-testid attribute for testing
+            - Clean, accessible markup with shield icon
+            - Text content matches user requirements perfectly
+            
+            No issues found. Feature is production-ready.
+
   - task: "Age range slider shows two thumbs"
     implemented: true
     working: true
@@ -335,12 +406,7 @@ backend:
             Verified: GET /api/push/vapid returns publicKey (87 chars base64url). ensureVapid persists to `config` collection. web-push library imported and used with sendPushToUser helper. Push triggers wired into POST /api/likes (recipient side, no match yet → "Someone nearby"), auto-accept match, reciprocal match, POST /api/likes/accept (both sides), and POST /api/messages/text (recipient side).
 
 test_plan:
-  current_focus:
-    - "Age range slider shows two thumbs"
-    - "Wearing cue chips removed, replaced with editable clothing hints"
-    - "Matches Inbox button and sheet"
-    - "Block & Report on Match Reveal"
-    - "PWA install (manifest + service worker) and iOS Add to Home Screen sheet"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -348,18 +414,11 @@ test_plan:
 agent_communication:
     - agent: "main"
       message: |
-        Primary bug to verify: the Age range slider on the Dating preferences step should now show TWO draggable thumbs (one at each end of the range). Previously only ONE thumb (the lower/younger end) rendered.
+        NEW BUG FIX to verify: female-privacy explainer note appears on gender selection.
         
-        To reach it:
-        1. Grant geolocation permission (or use the app's picker).
-        2. Confirm venue "The Alma" (or pick any).
-        3. Onboarding step 1 "The basics": enter any First name (e.g. "Alex"), leave age at default, select gender "female". Tap Continue.
-        4. Onboarding step 2 "A photograph": tap "Use a demo portrait". Tap Continue.
-        5. Onboarding step 3 "Why are you here?": Dating is selected by default. Tap Continue.
-        6. Onboarding step 4 "Dating preferences": THIS is where the bug was. Look at the "Age range" slider — it should have TWO thumbs (one at 25, one at 40 by default). Both should be individually draggable.
-        7. Also confirm the "Age" slider on step 1 still shows ONE thumb (single-value slider).
+        Full test steps and expected copy are in the "Female-privacy explainer note on gender selection" task above. This is the ONLY thing you need to verify in this pass — please prioritise it and skip re-testing everything else.
         
-        Also please verify the other listed frontend tasks. Backend endpoints were smoke-tested via curl and are all working.
+        Also please double-check the panel copy displays properly and that the animation looks smooth when toggling between gender options.
     - agent: "testing"
       message: |
         ✅ PRIMARY BUG FIX VERIFIED - Age range slider now shows TWO thumbs!
@@ -395,3 +454,50 @@ agent_communication:
         
         **RECOMMENDATION:**
         The primary bug fix is verified and working. The secondary features are implemented correctly based on code review. Please manually test the match-related features (Wearing hints, Inbox, Block & Report) by creating a match in the app to complete verification.
+    - agent: "testing"
+      message: |
+        ✅ FEMALE-PRIVACY EXPLAINER NOTE FULLY VERIFIED - ALL TESTS PASSED!
+        
+        Completed comprehensive testing of the newly added female-privacy explainer note feature. This was the ONLY feature tested in this pass as requested.
+        
+        **TEST RESULTS:**
+        
+        ✅ TEST A - Female pre-selected → panel visible: PASS
+        - Gender defaults to "female" on onboarding step 1
+        - Privacy panel with data-testid="female-privacy-note" is immediately visible below gender pills
+        - Panel displays shield icon and correct text:
+          • Title: "You are anonymous to men here"
+          • Body: "Men can't browse women. They only see your profile after you have said hello first — every match starts with you."
+        
+        ✅ TEST B - Toggle male → panel hides: PASS
+        - Clicking male gender option correctly changes radio state
+        - Privacy panel smoothly animates out and becomes hidden
+        - No visual artifacts or timing issues
+        
+        ✅ TEST C - Toggle non-binary → panel stays hidden: PASS
+        - Clicking non-binary gender option works correctly
+        - Privacy panel remains hidden (does not appear for non-binary users)
+        
+        ✅ TEST D - Toggle back to female → panel reappears: PASS
+        - Clicking female gender option again works correctly
+        - Privacy panel smoothly animates back in and becomes visible
+        - Panel content remains accurate
+        
+        ✅ TEST E - Visual placement: PASS
+        - Panel correctly positioned between gender selector (y=383) and community guidelines text (y=609)
+        - Panel y-position: 473 (properly centered)
+        - Visual hierarchy and spacing are correct
+        
+        ✅ TEST F - Screenshot verification: PASS
+        - Multiple screenshots captured showing all states
+        - Visual design matches specification (soft gold border, shield icon, serif typography)
+        
+        **IMPLEMENTATION QUALITY:**
+        - Clean AnimatePresence implementation with 250ms animation duration
+        - Proper conditional rendering (gender === 'female')
+        - Accessible markup with data-testid attribute
+        - Text content perfectly matches user requirements
+        - No console errors or warnings related to this feature
+        
+        **CONCLUSION:**
+        Feature is production-ready. No issues found. The female-privacy explainer note works exactly as specified and provides clear, helpful information to female users about their privacy protections in the app.
