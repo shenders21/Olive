@@ -16,46 +16,24 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Checkbox } from '@/components/ui/checkbox'
 
 // ---------- Small primitives ----------
-// The sprig sits at the top-right of the "O" — matches the tent-card wordmark.
-const OliveSprig = ({ size = 22, className = '' }) => (
-  <svg width={size * 0.9} height={size} viewBox="0 0 40 44" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-    {/* stem */}
-    <path d="M8 40 C 12 28, 20 18, 34 6" stroke="#7A8C5C" strokeWidth="1.6" strokeLinecap="round" fill="none"/>
-    {/* leaves — right side */}
-    <path d="M22 18 C 27 14, 33 14, 36 12 C 33 18, 28 22, 23 22 Z" fill="#8B9668"/>
-    <path d="M15 28 C 20 24, 26 24, 29 22 C 26 28, 21 32, 16 32 Z" fill="#7A8C5C"/>
-    {/* leaves — left side */}
-    <path d="M18 22 C 13 20, 8 22, 6 24 C 10 26, 15 26, 18 24 Z" fill="#98A57A"/>
-    {/* olive berry */}
-    <circle cx="30" cy="14" r="2.2" fill="#556B2F"/>
-    <circle cx="30" cy="14" r="0.8" fill="#7A8C5C" opacity="0.6"/>
-  </svg>
-)
-
-// Full wordmark: sprig overlapping the "O" of "Olive"
-const OliveWordmark = ({ size = 'md', dark = false }) => {
-  const sizes = {
-    sm: { text: 'text-xl', sprig: 14, offsetY: '-top-1.5', offsetX: '-left-1' },
-    md: { text: 'text-2xl', sprig: 18, offsetY: '-top-2', offsetX: '-left-1.5' },
-    lg: { text: 'text-4xl', sprig: 28, offsetY: '-top-3', offsetX: '-left-2' },
-  }
-  const s = sizes[size] || sizes.md
+// Wordmark uses the real brand asset (transparent PNG). Sizes are height-based.
+const OliveWordmark = ({ size = 'md' }) => {
+  const heights = { sm: 26, md: 40, lg: 64 }
+  const h = heights[size] || heights.md
   return (
-    <span className={`relative inline-flex items-baseline font-serif ${s.text} tracking-wide leading-none ${dark ? 'text-cream' : 'text-olive-deep'}`}>
-      <span className="relative inline-block">
-        <span className="relative z-10">O</span>
-        <span className={`absolute ${s.offsetY} ${s.offsetX} z-20 pointer-events-none`}>
-          <OliveSprig size={s.sprig} />
-        </span>
-      </span>
-      <span>live</span>
-    </span>
+    <img
+      src="/olive_wordmark.png"
+      alt="Olive"
+      style={{ height: h, width: 'auto' }}
+      className="block select-none"
+      draggable={false}
+    />
   )
 }
 
 const Shell = ({ children, dark }) => (
   <div className={`min-h-screen w-full ${dark ? 'olive-gradient text-cream' : 'paper text-olive-deep'}`}>
-    <div className="mx-auto w-full max-w-md px-5 pt-6 pb-10 safe-top safe-bottom">
+    <div className="mx-auto w-full max-w-md px-5 pt-14 pb-10 safe-top safe-bottom">
       {children}
     </div>
   </div>
@@ -63,7 +41,7 @@ const Shell = ({ children, dark }) => (
 
 const BrandHeader = ({ dark }) => (
   <div className="flex items-center justify-center pb-6">
-    <OliveWordmark size="md" dark={dark} />
+    <OliveWordmark size="md" />
   </div>
 )
 
@@ -411,7 +389,6 @@ function CheckIn({ venues, located, locationStatus, showPicker, setShowPicker, o
 // ---------- Onboarding ----------
 function Onboarding({ venue, existing, onDone }) {
   const [step, setStep] = useState(0)
-  const steps = ['name', 'photo', 'modes', 'dating']
   const [firstName, setFirstName] = useState(existing?.firstName || '')
   const [age, setAge] = useState(existing?.age || 28)
   const [gender, setGender] = useState(existing?.gender || 'female')
@@ -420,6 +397,8 @@ function Onboarding({ venue, existing, onDone }) {
   const [modes, setModes] = useState(existing?.modes || ['dating'])
   const [interestedIn, setInterestedIn] = useState(existing?.datingPrefs?.interestedIn || 'male')
   const [ageRange, setAgeRange] = useState([existing?.datingPrefs?.ageMin || 25, existing?.datingPrefs?.ageMax || 40])
+  const [partySize, setPartySize] = useState(existing?.friendProfile?.partySize || 1)
+  const [role, setRole] = useState(existing?.networkingProfile?.role || '')
   const [busy, setBusy] = useState(false)
   const fileRef = useRef(null)
 
@@ -437,7 +416,6 @@ function Onboarding({ venue, existing, onDone }) {
   }
 
   const usePlaceholder = () => {
-    // Fast path: assign a portrait so onboarding stays under 60 seconds.
     const n = Math.floor(Math.random() * 90) + 1
     const bucket = gender === 'male' ? 'men' : 'women'
     setPhoto(`https://randomuser.me/api/portraits/${bucket}/${n}.jpg`)
@@ -450,30 +428,42 @@ function Onboarding({ venue, existing, onDone }) {
         firstName, age, gender, bio, photo,
         modes: modes.length ? modes : ['dating'],
         datingPrefs: modes.includes('dating') ? { interestedIn, ageMin: ageRange[0], ageMax: ageRange[1] } : null,
+        friendProfile: modes.includes('friends') ? { partySize } : null,
+        networkingProfile: modes.includes('networking') ? { role } : null,
       }
       await onDone(payload)
     } catch (e) { toast.error(e.message) }
     finally { setBusy(false) }
   }
 
+  // Build dynamic step list based on modes selected
+  const baseSteps = ['name', 'photo', 'modes']
+  const dynamicSteps = [
+    ...baseSteps,
+    ...(modes.includes('dating') ? ['dating'] : []),
+    ...(modes.includes('friends') ? ['friends'] : []),
+    ...(modes.includes('networking') ? ['networking'] : []),
+  ]
+  const currentStepName = dynamicSteps[step]
+
   const canNext = () => {
-    if (step === 0) return firstName.trim().length >= 1 && age >= 18 && age <= 99 && gender
-    if (step === 1) return !!photo
-    if (step === 2) return modes.length > 0
-    if (step === 3) return true
+    if (currentStepName === 'name') return firstName.trim().length >= 1 && age >= 18 && age <= 99 && gender
+    if (currentStepName === 'photo') return !!photo
+    if (currentStepName === 'modes') return modes.length > 0
+    if (currentStepName === 'dating') return true
+    if (currentStepName === 'friends') return partySize >= 1 && partySize <= 8
+    if (currentStepName === 'networking') return role.trim().length >= 2
     return false
   }
 
-  const showDatingStep = modes.includes('dating')
-  const visibleSteps = showDatingStep ? steps : steps.slice(0, 3)
-  const progress = Math.round(((step + 1) / visibleSteps.length) * 100)
+  const progress = Math.round(((step + 1) / dynamicSteps.length) * 100)
 
   return (
     <Shell>
       <BrandHeader />
       <div className="mb-4">
         <div className="text-center text-[11px] uppercase tracking-[0.2em] text-olive/50 mb-2">
-          At {venue?.name} · Step {step + 1} of {visibleSteps.length}
+          At {venue?.name} · Step {step + 1} of {dynamicSteps.length}
         </div>
         <div className="h-[2px] bg-olive/10 rounded-full overflow-hidden">
           <motion.div className="h-full bg-gold" initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 0.4 }} />
@@ -481,8 +471,8 @@ function Onboarding({ venue, existing, onDone }) {
       </div>
 
       <AnimatePresence mode="wait">
-        {step === 0 && (
-          <motion.div key="s0" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
+        {currentStepName === 'name' && (
+          <motion.div key="s-name" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
             <SectionTitle sub="Just enough to say hello.">The basics</SectionTitle>
             <div className="space-y-5">
               <div>
@@ -513,8 +503,8 @@ function Onboarding({ venue, existing, onDone }) {
           </motion.div>
         )}
 
-        {step === 1 && (
-          <motion.div key="s1" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
+        {currentStepName === 'photo' && (
+          <motion.div key="s-photo" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
             <SectionTitle sub="A live photograph. Real faces only.">A photograph</SectionTitle>
             <div className="flex flex-col items-center">
               <button
@@ -553,31 +543,27 @@ function Onboarding({ venue, existing, onDone }) {
           </motion.div>
         )}
 
-        {step === 2 && (
-          <motion.div key="s2" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
+        {currentStepName === 'modes' && (
+          <motion.div key="s-modes" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
             <SectionTitle sub="Choose one or more. You can change later.">Why are you here?</SectionTitle>
             <div className="space-y-3">
               {[
-                { key: 'dating', label: 'Dating', desc: 'To meet someone romantically.', icon: Heart, avail: true },
-                { key: 'friends', label: 'Friends', desc: 'To meet another table or a group.', icon: Users, avail: false },
-                { key: 'networking', label: 'Networking', desc: 'To meet others professionally.', icon: Briefcase, avail: false },
-              ].map(({ key, label, desc, icon: Icon, avail }) => {
+                { key: 'dating', label: 'Dating', desc: 'To meet someone romantically.', icon: Heart },
+                { key: 'friends', label: 'Friends', desc: 'To meet another table or a group.', icon: Users },
+                { key: 'networking', label: 'Networking', desc: 'To meet others professionally.', icon: Briefcase },
+              ].map(({ key, label, desc, icon: Icon }) => {
                 const active = modes.includes(key)
                 return (
                   <button
                     key={key}
-                    onClick={() => avail && toggleMode(key)}
-                    disabled={!avail}
-                    className={`w-full text-left rounded-2xl border px-4 py-4 flex items-start gap-3 transition ${active ? 'border-gold bg-gold/10' : 'border-olive/15 bg-cream'} ${!avail ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    onClick={() => toggleMode(key)}
+                    className={`w-full text-left rounded-2xl border px-4 py-4 flex items-start gap-3 transition ${active ? 'border-gold bg-gold/10' : 'border-olive/15 bg-cream'}`}
                   >
                     <div className={`h-10 w-10 rounded-full flex items-center justify-center ${active ? 'bg-olive text-cream' : 'bg-olive/10 text-olive'}`}>
                       <Icon className="h-5 w-5" />
                     </div>
                     <div className="flex-1">
-                      <div className="font-serif text-lg leading-tight flex items-center gap-2">
-                        {label}
-                        {!avail && <span className="text-[10px] uppercase tracking-[0.15em] text-olive/50">Soon</span>}
-                      </div>
+                      <div className="font-serif text-lg leading-tight">{label}</div>
                       <div className="text-sm text-olive/70">{desc}</div>
                     </div>
                     <Checkbox checked={active} className="mt-1 pointer-events-none" />
@@ -588,8 +574,8 @@ function Onboarding({ venue, existing, onDone }) {
           </motion.div>
         )}
 
-        {step === 3 && showDatingStep && (
-          <motion.div key="s3" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
+        {currentStepName === 'dating' && (
+          <motion.div key="s-dating" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
             <SectionTitle sub="Used only to match you inside this venue.">Dating preferences</SectionTitle>
             <div className="space-y-6">
               <div>
@@ -614,6 +600,49 @@ function Onboarding({ venue, existing, onDone }) {
             </div>
           </motion.div>
         )}
+
+        {currentStepName === 'friends' && (
+          <motion.div key="s-friends" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
+            <SectionTitle sub="Groups can invite other groups. No chat.">Who are you with?</SectionTitle>
+            <div className="space-y-4">
+              <div className="grid grid-cols-4 gap-2">
+                {[1, 2, 3, 4].map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setPartySize(n)}
+                    className={`rounded-xl border py-4 flex flex-col items-center transition ${partySize === n ? 'border-gold bg-gold/10' : 'border-olive/15 bg-cream'}`}
+                  >
+                    <div className="font-serif text-2xl">{n === 4 ? '4+' : n}</div>
+                    <div className="text-[10px] uppercase tracking-[0.15em] text-olive/60 mt-0.5">
+                      {n === 1 ? 'Alone' : n === 4 ? 'Group' : n === 2 ? 'Duo' : 'Trio'}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <p className="text-center text-xs text-olive/60">
+                {partySize === 1 ? "You'll browse others who are alone or in groups." : `You'll be able to invite other tables to join yours.`}
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+        {currentStepName === 'networking' && (
+          <motion.div key="s-net" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
+            <SectionTitle sub="One line. Shown to other networkers here.">What do you do?</SectionTitle>
+            <div className="space-y-4">
+              <div>
+                <Label className="text-xs uppercase tracking-[0.15em] text-olive/60">Your role</Label>
+                <Input value={role} onChange={e => setRole(e.target.value)}
+                  placeholder="e.g. Product designer at a fintech"
+                  className="mt-2 h-12 bg-cream border-olive/20 focus-visible:ring-gold text-base" maxLength={64} />
+                <div className="text-right text-[11px] text-olive/40 mt-1">{role.length}/64</div>
+              </div>
+              <p className="text-center text-xs text-olive/60">
+                Networking users can browse each other normally — no photos are blurred, no gender rules apply.
+              </p>
+            </div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       <div className="pt-8 flex items-center gap-3">
@@ -623,7 +652,7 @@ function Onboarding({ venue, existing, onDone }) {
           </Button>
         )}
         <div className="flex-1" />
-        {step < visibleSteps.length - 1 ? (
+        {step < dynamicSteps.length - 1 ? (
           <Button
             disabled={!canNext()}
             onClick={() => setStep(step + 1)}
@@ -647,30 +676,30 @@ function Onboarding({ venue, existing, onDone }) {
 
 // ---------- Venue Feed ----------
 function VenueFeed({ userId, venue, profile, onLeave, onMatch }) {
+  const enabledModes = (profile?.modes || ['dating']).filter(m => ['dating','friends','networking'].includes(m))
+  const [mode, setMode] = useState(enabledModes[0] || 'dating')
   const [feed, setFeed] = useState(null)
   const [busyId, setBusyId] = useState(null)
-  const isMale = profile?.gender === 'male'
 
   const load = async () => {
     try {
-      const r = await api(`feed?userId=${userId}&venueId=${venue.id}`)
+      const r = await api(`feed?userId=${userId}&venueId=${venue.id}&mode=${mode}`)
       setFeed(r)
     } catch (e) { toast.error(e.message) }
   }
 
-  useEffect(() => { load() }, [venue?.id])
+  useEffect(() => { setFeed(null); load() }, [venue?.id, mode])
 
   const likeCandidate = async (c) => {
     setBusyId(c.id)
     try {
-      // Suspenseful pause so it feels considered
-      const wait = new Promise(r => setTimeout(r, 1400))
-      const call = api('likes', { method: 'POST', body: { fromUserId: userId, toUserId: c.id, venueId: venue.id } })
+      const wait = new Promise(r => setTimeout(r, mode === 'dating' ? 1400 : 700))
+      const call = api('likes', { method: 'POST', body: { fromUserId: userId, toUserId: c.id, venueId: venue.id, mode } })
       const [r] = await Promise.all([call, wait])
       if (r.matched) {
-        onMatch({ other: r.other, me: profile, matchId: r.match.id, viaLike: true })
+        onMatch({ other: r.other, me: profile, matchId: r.match.id, mode, viaLike: true })
       } else {
-        toast('Interest sent quietly.')
+        toast(mode === 'friends' ? 'Invite sent.' : mode === 'networking' ? 'Connection request sent.' : 'Interest sent quietly.')
       }
       await load()
     } catch (e) { toast.error(e.message) }
@@ -681,7 +710,7 @@ function VenueFeed({ userId, venue, profile, onLeave, onMatch }) {
     setBusyId(item.likeId)
     try {
       const r = await api('likes/accept', { method: 'POST', body: { likeId: item.likeId, userId } })
-      if (r.matched) onMatch({ other: r.other, me: profile, matchId: r.match.id, viaAccept: true })
+      if (r.matched) onMatch({ other: r.other, me: profile, matchId: r.match.id, mode, viaAccept: true })
       await load()
     } catch (e) { toast.error(e.message) }
     finally { setBusyId(null) }
@@ -696,6 +725,12 @@ function VenueFeed({ userId, venue, profile, onLeave, onMatch }) {
     finally { setBusyId(null) }
   }
 
+  const modeMeta = {
+    dating: { icon: Heart, label: 'Dating' },
+    friends: { icon: Users, label: 'Friends' },
+    networking: { icon: Briefcase, label: 'Networking' },
+  }
+
   return (
     <Shell>
       {/* Header */}
@@ -707,7 +742,7 @@ function VenueFeed({ userId, venue, profile, onLeave, onMatch }) {
       </div>
 
       {/* Venue banner */}
-      <div className="rounded-2xl olive-gradient text-cream px-5 py-4 mb-6 shadow-sm">
+      <div className="rounded-2xl olive-gradient text-cream px-5 py-4 mb-4 shadow-sm">
         <div className="flex items-center gap-2 text-cream/70 text-[11px] uppercase tracking-[0.2em]">
           <span className="h-1.5 w-1.5 rounded-full bg-gold animate-pulse" />
           <span>Live at</span>
@@ -721,18 +756,172 @@ function VenueFeed({ userId, venue, profile, onLeave, onMatch }) {
         </div>
       </div>
 
+      {/* Mode tabs (only if user enabled >1 mode) */}
+      {enabledModes.length > 1 && (
+        <div className="flex gap-1 mb-4 p-1 rounded-full bg-olive/5 border border-olive/10">
+          {enabledModes.map(m => {
+            const M = modeMeta[m]
+            const active = mode === m
+            return (
+              <button key={m} onClick={() => setMode(m)}
+                className={`flex-1 h-9 rounded-full flex items-center justify-center gap-1.5 text-xs uppercase tracking-[0.15em] transition ${active ? 'bg-olive text-cream shadow-sm' : 'text-olive/60 hover:text-olive'}`}>
+                <M.icon className="h-3.5 w-3.5" /> {M.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {!feed && (
         <div className="flex justify-center py-12 text-olive/60"><Loader2 className="h-5 w-5 animate-spin" /></div>
       )}
 
-      {feed?.role === 'browser' && (
-        <BrowserView candidates={feed.candidates} onLike={likeCandidate} busyId={busyId} profile={profile} />
+      {feed?.mode === 'dating' && feed?.role === 'browser' && (
+        <BrowserView candidates={feed.candidates} onLike={likeCandidate} busyId={busyId} />
       )}
-
-      {feed?.role === 'recipient' && (
+      {feed?.mode === 'dating' && feed?.role === 'recipient' && (
         <RecipientView items={feed.incoming} onAccept={acceptIncoming} onDecline={declineIncoming} busyId={busyId} />
       )}
+      {feed?.mode === 'friends' && (
+        <FriendsView feed={feed} onInvite={likeCandidate} onAccept={acceptIncoming} onDecline={declineIncoming} busyId={busyId} profile={profile} />
+      )}
+      {feed?.mode === 'networking' && (
+        <NetworkingView feed={feed} onConnect={likeCandidate} onAccept={acceptIncoming} onDecline={declineIncoming} busyId={busyId} />
+      )}
     </Shell>
+  )
+}
+
+function FriendsView({ feed, onInvite, onAccept, onDecline, busyId, profile }) {
+  const myParty = profile?.friendProfile?.partySize || 1
+  const partyLabel = (n) => n === 1 ? 'Alone' : `Group of ${n === 4 ? '4+' : n}`
+  return (
+    <div className="space-y-6">
+      {feed.incoming?.length > 0 && (
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.2em] text-gold-dark mb-2">Invites for you</div>
+          <div className="space-y-2">
+            {feed.incoming.map(item => (
+              <div key={item.likeId} className="rounded-2xl bg-cream border border-gold/40 p-3 flex items-center gap-3">
+                <img src={item.photo} alt="" className="h-14 w-14 rounded-full object-cover" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-serif text-lg leading-tight">{item.firstName}, {item.age}</div>
+                  <div className="text-xs text-olive/60">{partyLabel(item.partySize)}{item.bio ? ` · ${item.bio}` : ''}</div>
+                </div>
+                <div className="flex gap-1">
+                  <Button disabled={busyId === item.likeId} onClick={() => onAccept(item)} className="h-9 px-3 rounded-full bg-olive hover:bg-olive-deep text-cream text-xs uppercase tracking-[0.15em]">
+                    {busyId === item.likeId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Accept'}
+                  </Button>
+                  <Button variant="ghost" onClick={() => onDecline(item)} className="h-9 px-3 rounded-full text-olive/60 hover:text-olive text-xs">Pass</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <div className="flex items-baseline justify-between mb-2">
+          <div className="text-[11px] uppercase tracking-[0.2em] text-olive/50">
+            You are here as: <span className="text-olive">{partyLabel(myParty)}</span>
+          </div>
+          <div className="text-[11px] text-olive/40">{feed.candidates?.length || 0} to meet</div>
+        </div>
+        {(!feed.candidates || feed.candidates.length === 0) ? (
+          <div className="text-center py-10 text-olive/60">
+            <p className="font-serif text-lg text-olive">No other tables looking to meet yet.</p>
+            <p className="text-sm mt-1">Try again in a few minutes.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {feed.candidates.map(c => (
+              <div key={c.id} className="rounded-2xl bg-cream border border-olive/10 overflow-hidden">
+                <div className="aspect-[3/4] bg-olive/5 overflow-hidden relative">
+                  {c.photo ? <img src={c.photo} alt="" className="h-full w-full object-cover" /> : <div className="h-full w-full bg-olive/10" />}
+                  <div className="absolute top-2 left-2 rounded-full bg-cream/95 text-olive-deep text-[10px] uppercase tracking-[0.15em] px-2 py-0.5">
+                    {partyLabel(c.partySize)}
+                  </div>
+                </div>
+                <div className="px-3 pt-2 pb-3">
+                  <div className="font-serif text-lg leading-tight">{c.firstName}, {c.age}</div>
+                  {c.bio && <div className="text-[11px] text-olive/60 mt-0.5 line-clamp-2">{c.bio}</div>}
+                  <Button
+                    disabled={busyId === c.id}
+                    onClick={() => onInvite(c)}
+                    className="w-full mt-2 h-9 rounded-full bg-olive hover:bg-olive-deep text-cream text-xs uppercase tracking-[0.15em]"
+                  >
+                    {busyId === c.id
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <><Users className="h-3.5 w-3.5 mr-1.5" /> Invite over</>}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function NetworkingView({ feed, onConnect, onAccept, onDecline, busyId }) {
+  return (
+    <div className="space-y-6">
+      {feed.incoming?.length > 0 && (
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.2em] text-gold-dark mb-2">Connection requests</div>
+          <div className="space-y-2">
+            {feed.incoming.map(item => (
+              <div key={item.likeId} className="rounded-2xl bg-cream border border-gold/40 p-3 flex items-center gap-3">
+                <img src={item.photo} alt="" className="h-14 w-14 rounded-full object-cover" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-serif text-lg leading-tight">{item.firstName}, {item.age}</div>
+                  {item.role && <div className="text-xs text-olive/70 italic">{item.role}</div>}
+                </div>
+                <div className="flex gap-1">
+                  <Button disabled={busyId === item.likeId} onClick={() => onAccept(item)} className="h-9 px-3 rounded-full bg-olive hover:bg-olive-deep text-cream text-xs uppercase tracking-[0.15em]">
+                    {busyId === item.likeId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Connect'}
+                  </Button>
+                  <Button variant="ghost" onClick={() => onDecline(item)} className="h-9 px-3 rounded-full text-olive/60 hover:text-olive text-xs">Pass</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <div className="text-[11px] uppercase tracking-[0.2em] text-olive/50 mb-2">
+          {feed.candidates?.length || 0} networking here
+        </div>
+        {(!feed.candidates || feed.candidates.length === 0) ? (
+          <div className="text-center py-10 text-olive/60">
+            <p className="font-serif text-lg text-olive">Nobody networking here yet.</p>
+            <p className="text-sm mt-1">Check back shortly.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {feed.candidates.map(c => (
+              <div key={c.id} className="rounded-2xl bg-cream border border-olive/10 p-3 flex items-center gap-3">
+                <img src={c.photo} alt="" className="h-16 w-16 rounded-full object-cover" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-serif text-lg leading-tight">{c.firstName}, {c.age}</div>
+                  {c.role && <div className="text-sm text-olive/80 italic truncate">{c.role}</div>}
+                  {c.bio && <div className="text-[11px] text-olive/60 line-clamp-1">{c.bio}</div>}
+                </div>
+                <Button
+                  disabled={busyId === c.id}
+                  onClick={() => onConnect(c)}
+                  className="h-9 px-4 rounded-full bg-olive hover:bg-olive-deep text-cream text-xs uppercase tracking-[0.15em]"
+                >
+                  {busyId === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Connect'}
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -834,92 +1023,189 @@ function RecipientView({ items, onAccept, onDecline, busyId }) {
 }
 
 // ---------- Match reveal ----------
+// Fixed allowlist mirrors backend. The whole language of the "chat".
+const CUE_GROUPS = [
+  { label: 'Where', cues: ['By the bar', 'By the window', 'By the fireplace', 'In the beer garden', 'Upstairs', 'By the door', 'In the snug'] },
+  { label: 'Wearing', cues: ['Wearing black', 'Wearing white', 'Wearing red', 'Wearing blue', 'In a green jumper', 'In a denim jacket'] },
+  { label: 'Signal', cues: ["I'll wave", "I'll come to you", 'Just ordering a drink', 'Give me two minutes', 'On my way now'] },
+]
+
 function MatchReveal({ userId, payload, venue, onClose }) {
-  const { other, me } = payload
-  const [phase, setPhase] = useState('reveal') // reveal | actioned
-  const [chosen, setChosen] = useState(null)
+  const { other, me, mode = 'dating' } = payload
+  const [chosenAction, setChosenAction] = useState(null)
+  const [messages, setMessages] = useState([])
+  const [sending, setSending] = useState(null)
+  const threadRef = useRef(null)
+
+  const loadMessages = async () => {
+    try {
+      const r = await api(`messages?matchId=${payload.matchId}&userId=${userId}`)
+      setMessages(r.messages || [])
+    } catch {}
+  }
+
+  useEffect(() => {
+    loadMessages()
+    const t = setInterval(loadMessages, 2500)
+    return () => clearInterval(t)
+  }, [payload.matchId])
+
+  useEffect(() => {
+    // Auto-scroll thread to bottom on new messages
+    if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight
+  }, [messages.length])
+
+  const sendCue = async (cue) => {
+    setSending(cue)
+    try {
+      await api('messages', { method: 'POST', body: { matchId: payload.matchId, fromUserId: userId, cue } })
+      // Optimistic append
+      setMessages(m => [...m, { id: 'tmp', matchId: payload.matchId, fromUserId: userId, toUserId: other?.id, cue, createdAt: Date.now() }])
+      await loadMessages()
+    } catch (e) { toast.error(e.message) }
+    finally { setSending(null) }
+  }
 
   const doAction = async (action) => {
-    setChosen(action)
-    setPhase('actioned')
+    setChosenAction(action)
     try {
       await api('matches/action', { method: 'POST', body: { matchId: payload.matchId, userId, action } })
     } catch {}
   }
 
+  const modeLabels = {
+    dating: 'A quiet match',
+    friends: 'You are welcome to join',
+    networking: 'A new connection',
+  }
+  const modeHead = {
+    dating: "It's a match.",
+    friends: 'You can join them.',
+    networking: 'Connected.',
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center px-5"
+      className="fixed inset-0 z-50 flex items-start justify-center px-4 py-6 overflow-y-auto"
       style={{ background: 'linear-gradient(160deg, rgba(19,24,20,0.97) 0%, rgba(11,15,12,0.97) 100%)' }}
     >
-      <div className="relative w-full max-w-md">
-        <button onClick={onClose} className="absolute top-0 right-0 text-cream/60 hover:text-cream p-2">
+      <div className="relative w-full max-w-md pb-8">
+        <button onClick={onClose} className="absolute top-0 right-0 text-cream/60 hover:text-cream p-2 z-10">
           <X className="h-5 w-5" />
         </button>
 
         <motion.div
           initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
           transition={{ delay: 0.1 }}
-          className="text-center pt-6"
+          className="text-center pt-4"
         >
-          <div className="text-[11px] uppercase tracking-[0.3em] text-gold-light">A quiet match</div>
-          <h2 className="font-serif text-5xl text-cream mt-2">It&apos;s a match.</h2>
-          <div className="h-px w-24 mx-auto mt-4 gold-line" />
+          <div className="text-[11px] uppercase tracking-[0.3em] text-gold-light">{modeLabels[mode]}</div>
+          <h2 className="font-serif text-4xl text-cream mt-2">{modeHead[mode]}</h2>
+          <div className="h-px w-20 mx-auto mt-3 gold-line" />
         </motion.div>
 
-        <div className="flex items-center justify-center gap-6 mt-8">
+        <div className="flex items-center justify-center gap-5 mt-6">
           <MatchFace user={me} delay={0.3} />
           <motion.div
             initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={{ delay: 0.5, type: 'spring' }}
-            className="h-12 w-12 rounded-full bg-gold text-olive-deep flex items-center justify-center shadow-lg"
+            className="h-11 w-11 rounded-full bg-gold text-olive-deep flex items-center justify-center shadow-lg"
           >
-            <Heart className="h-6 w-6 fill-current" />
+            <Heart className="h-5 w-5 fill-current" />
           </motion.div>
           <MatchFace user={other} delay={0.7} />
         </div>
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9 }}
-          className="mt-8 text-center text-cream">
+          className="mt-6 text-center text-cream">
           <div className="font-serif text-2xl">{other?.firstName}, {other?.age}</div>
-          {other?.bio && <div className="text-cream/70 italic text-sm mt-1">&ldquo;{other.bio}&rdquo;</div>}
-        </motion.div>
-
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.1 }}
-          className="mt-8 rounded-2xl bg-cream/5 border border-cream/10 px-5 py-4 text-center">
-          <div className="text-[11px] uppercase tracking-[0.25em] text-gold-light">Where to meet</div>
-          <div className="font-serif text-3xl text-cream mt-1">Meet by the bar</div>
-          <div className="text-cream/60 text-xs mt-1">{venue?.name}</div>
-        </motion.div>
-
-        {phase === 'reveal' && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.3 }}
-            className="mt-6 grid grid-cols-3 gap-2">
-            <Button onClick={() => doAction('heading_over')} className="h-11 rounded-full bg-gold hover:bg-gold-dark text-olive-deep text-xs uppercase tracking-[0.15em]">
-              Heading over
-            </Button>
-            <Button onClick={() => doAction('five_minutes')} variant="outline" className="h-11 rounded-full border-cream/30 bg-transparent text-cream hover:bg-cream/10 hover:text-cream text-xs uppercase tracking-[0.15em]">
-              <Clock className="h-3.5 w-3.5 mr-1" /> 5 min
-            </Button>
-            <Button onClick={() => doAction('not_now')} variant="ghost" className="h-11 rounded-full text-cream/70 hover:text-cream hover:bg-cream/5 text-xs uppercase tracking-[0.15em]">
-              Not now
-            </Button>
-          </motion.div>
-        )}
-
-        {phase === 'actioned' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="mt-6 text-center text-cream">
-            <div className="font-serif text-xl">
-              {chosen === 'heading_over' && `${other?.firstName} has been told you\u2019re on your way.`}
-              {chosen === 'five_minutes' && `${other?.firstName} knows you'll be there in five.`}
-              {chosen === 'not_now' && `Kept private. No message sent.`}
+          {mode === 'networking' && other?.role && <div className="text-gold-light italic text-sm mt-0.5">{other.role}</div>}
+          {mode === 'friends' && other?.partySize && (
+            <div className="text-gold-light text-sm mt-0.5">
+              {other.partySize === 1 ? 'On their own' : `Group of ${other.partySize === 4 ? '4+' : other.partySize}`}
             </div>
-            <Button onClick={onClose} className="mt-6 h-11 px-6 rounded-full bg-cream text-olive-deep hover:bg-cream-dark">
-              Back to the room
-            </Button>
-          </motion.div>
-        )}
+          )}
+          {other?.bio && <div className="text-cream/60 italic text-sm mt-1">&ldquo;{other.bio}&rdquo;</div>}
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.0 }}
+          className="mt-6 rounded-2xl bg-cream/5 border border-cream/10 px-5 py-3 text-center">
+          <div className="text-[10px] uppercase tracking-[0.25em] text-gold-light">Where to meet</div>
+          <div className="font-serif text-2xl text-cream mt-0.5">Meet by the bar</div>
+          <div className="text-cream/60 text-xs">{venue?.name}</div>
+        </motion.div>
+
+        {/* Quick actions */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.1 }}
+          className="mt-4 grid grid-cols-3 gap-2">
+          <Button
+            onClick={() => doAction('heading_over')}
+            className={`h-10 rounded-full text-[11px] uppercase tracking-[0.15em] ${chosenAction === 'heading_over' ? 'bg-gold text-olive-deep' : 'bg-cream/10 hover:bg-cream/20 text-cream'}`}
+          >
+            Heading over
+          </Button>
+          <Button
+            onClick={() => doAction('five_minutes')}
+            className={`h-10 rounded-full text-[11px] uppercase tracking-[0.15em] ${chosenAction === 'five_minutes' ? 'bg-gold text-olive-deep' : 'bg-cream/10 hover:bg-cream/20 text-cream'}`}
+          >
+            <Clock className="h-3 w-3 mr-1" /> 5 min
+          </Button>
+          <Button
+            onClick={() => doAction('not_now')}
+            className={`h-10 rounded-full text-[11px] uppercase tracking-[0.15em] ${chosenAction === 'not_now' ? 'bg-gold text-olive-deep' : 'bg-cream/10 hover:bg-cream/20 text-cream'}`}
+          >
+            Not now
+          </Button>
+        </motion.div>
+
+        {/* Cue thread */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.2 }}
+          className="mt-6">
+          <div className="text-[10px] uppercase tracking-[0.25em] text-gold-light text-center mb-3">
+            Help each other find the way
+          </div>
+
+          {messages.length > 0 && (
+            <div ref={threadRef} className="max-h-52 overflow-y-auto no-scrollbar space-y-1.5 mb-3 py-1">
+              {messages.map((m, i) => {
+                const mine = m.fromUserId === userId
+                return (
+                  <div key={m.id + '-' + i} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[75%] rounded-2xl px-3.5 py-1.5 text-sm ${mine ? 'bg-gold text-olive-deep' : 'bg-cream/15 text-cream'}`}>
+                      {m.cue}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {CUE_GROUPS.map(g => (
+              <div key={g.label}>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-cream/40 mb-1">{g.label}</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {g.cues.map(c => (
+                    <button
+                      key={c}
+                      onClick={() => sendCue(c)}
+                      disabled={sending === c}
+                      className="rounded-full border border-cream/20 bg-cream/5 hover:bg-cream/15 disabled:opacity-40 px-3 py-1.5 text-xs text-cream transition"
+                    >
+                      {sending === c ? <Loader2 className="h-3 w-3 animate-spin inline" /> : c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+        <div className="mt-8 text-center">
+          <Button onClick={onClose} className="h-11 px-6 rounded-full bg-cream text-olive-deep hover:bg-cream-dark">
+            Back to the room
+          </Button>
+        </div>
       </div>
     </motion.div>
   )

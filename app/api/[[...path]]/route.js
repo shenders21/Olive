@@ -23,20 +23,27 @@ const VENUES = [
 ];
 
 const SEED_USERS = [
-  { firstName: 'Sophie', age: 28, gender: 'female', bio: 'Reading Sally Rooney with a negroni.', photo: 'https://randomuser.me/api/portraits/women/44.jpg', interestedIn: 'male', ageMin: 26, ageMax: 38, venueId: 'alma' },
-  { firstName: 'Grace', age: 31, gender: 'female', bio: 'Architect. Just finished a run.', photo: 'https://randomuser.me/api/portraits/women/68.jpg', interestedIn: 'male', ageMin: 28, ageMax: 40, venueId: 'alma' },
-  { firstName: 'Isla', age: 26, gender: 'female', bio: 'Loves pubs with fireplaces.', photo: 'https://randomuser.me/api/portraits/women/32.jpg', interestedIn: 'male', ageMin: 25, ageMax: 34, venueId: 'alma' },
-  { firstName: 'James', age: 30, gender: 'male', bio: 'Doctor. Off shift. Reading Le Carre.', photo: 'https://randomuser.me/api/portraits/men/45.jpg', interestedIn: 'female', ageMin: 25, ageMax: 34, venueId: 'alma' },
-  { firstName: 'Oliver', age: 33, gender: 'male', bio: 'Just moved to SW18. Green corduroys.', photo: 'https://randomuser.me/api/portraits/men/22.jpg', interestedIn: 'female', ageMin: 27, ageMax: 36, venueId: 'alma' },
-  { firstName: 'Henry', age: 29, gender: 'male', bio: 'Musician. Guitar case by the door.', photo: 'https://randomuser.me/api/portraits/men/78.jpg', interestedIn: 'female', ageMin: 24, ageMax: 32, venueId: 'alma' },
-  { firstName: 'Amelia', age: 27, gender: 'female', bio: 'Painter. In the back corner.', photo: 'https://randomuser.me/api/portraits/women/12.jpg', interestedIn: 'male', ageMin: 26, ageMax: 36, venueId: 'ivy' },
-  { firstName: 'Beatrice', age: 30, gender: 'female', bio: 'Journalist. Sipping a red.', photo: 'https://randomuser.me/api/portraits/women/55.jpg', interestedIn: 'male', ageMin: 28, ageMax: 40, venueId: 'ivy' },
-  { firstName: 'Charlie', age: 32, gender: 'male', bio: 'Architect. Green jumper.', photo: 'https://randomuser.me/api/portraits/men/33.jpg', interestedIn: 'female', ageMin: 26, ageMax: 36, venueId: 'ivy' },
-  { firstName: 'Daniel', age: 28, gender: 'male', bio: 'Chef. Day off.', photo: 'https://randomuser.me/api/portraits/men/64.jpg', interestedIn: 'female', ageMin: 25, ageMax: 33, venueId: 'ivy' },
-  { firstName: 'Mia', age: 29, gender: 'female', bio: 'Barrister. Off Chancery Lane.', photo: 'https://randomuser.me/api/portraits/women/76.jpg', interestedIn: 'male', ageMin: 27, ageMax: 38, venueId: 'sekforde' },
-  { firstName: 'Nora', age: 33, gender: 'female', bio: 'Sommelier. Ask me for a recommendation.', photo: 'https://randomuser.me/api/portraits/women/90.jpg', interestedIn: 'male', ageMin: 30, ageMax: 42, venueId: 'sekforde' },
-  { firstName: 'Ethan', age: 31, gender: 'male', bio: 'Engineer. Long day. Pint of Guinness.', photo: 'https://randomuser.me/api/portraits/men/11.jpg', interestedIn: 'female', ageMin: 26, ageMax: 36, venueId: 'sekforde' },
-  { firstName: 'Felix', age: 34, gender: 'male', bio: 'Writer. Notebook in hand.', photo: 'https://randomuser.me/api/portraits/men/47.jpg', interestedIn: 'female', ageMin: 28, ageMax: 40, venueId: 'sekforde' },
+  { firstName: 'Sophie', age: 28, gender: 'female', bio: 'Reading Sally Rooney with a negroni.', photo: 'https://randomuser.me/api/portraits/women/44.jpg', interestedIn: 'male', ageMin: 26, ageMax: 38, venueId: 'alma', modes: ['dating'], role: null, partySize: null },
+  { firstName: 'Grace', age: 31, gender: 'female', bio: 'Architect. Just finished a run.', photo: 'https://randomuser.me/api/portraits/women/68.jpg', interestedIn: 'male', ageMin: 28, ageMax: 40, venueId: 'alma', modes: ['dating','networking'], role: 'Architect at Foster & Partners', partySize: null },
+  { firstName: 'Isla', age: 26, gender: 'female', bio: 'Loves pubs with fireplaces.', photo: 'https://randomuser.me/api/portraits/women/32.jpg', interestedIn: 'male', ageMin: 25, ageMax: 34, venueId: 'alma', modes: ['dating','friends'], role: null, partySize: 2 },
+  { firstName: 'James', age: 30, gender: 'male', bio: 'Doctor. Off shift. Reading Le Carre.', photo: 'https://randomuser.me/api/portraits/men/45.jpg', interestedIn: 'female', ageMin: 25, ageMax: 34, venueId: 'alma', modes: ['dating'], role: null, partySize: null },
+  { firstName: 'Oliver', age: 33, gender: 'male', bio: 'Just moved to SW18. Green corduroys.', photo: 'https://randomuser.me/api/portraits/men/22.jpg', interestedIn: 'female', ageMin: 27, ageMax: 36, venueId: 'alma', modes: ['dating','networking'], role: 'Founder, early-stage SaaS', partySize: null },
+  { firstName: 'Henry', age: 29, gender: 'male', bio: 'Musician. Guitar case by the door.', photo: 'https://randomuser.me/api/portraits/men/78.jpg', interestedIn: 'female', ageMin: 24, ageMax: 32, venueId: 'alma', modes: ['dating','friends'], role: null, partySize: 3 },
+  { firstName: 'Amelia', age: 27, gender: 'female', bio: 'Painter. In the back corner.', photo: 'https://randomuser.me/api/portraits/women/12.jpg', interestedIn: 'male', ageMin: 26, ageMax: 36, venueId: 'ivy', modes: ['dating','friends'], role: null, partySize: 1 },
+  { firstName: 'Beatrice', age: 30, gender: 'female', bio: 'Journalist. Sipping a red.', photo: 'https://randomuser.me/api/portraits/women/55.jpg', interestedIn: 'male', ageMin: 28, ageMax: 40, venueId: 'ivy', modes: ['dating','networking'], role: 'Features editor at a magazine', partySize: null },
+  { firstName: 'Charlie', age: 32, gender: 'male', bio: 'Architect. Green jumper.', photo: 'https://randomuser.me/api/portraits/men/33.jpg', interestedIn: 'female', ageMin: 26, ageMax: 36, venueId: 'ivy', modes: ['dating','networking'], role: 'Architect. Housing projects.', partySize: null },
+  { firstName: 'Daniel', age: 28, gender: 'male', bio: 'Chef. Day off.', photo: 'https://randomuser.me/api/portraits/men/64.jpg', interestedIn: 'female', ageMin: 25, ageMax: 33, venueId: 'ivy', modes: ['dating','friends'], role: null, partySize: 2 },
+  { firstName: 'Mia', age: 29, gender: 'female', bio: 'Barrister. Off Chancery Lane.', photo: 'https://randomuser.me/api/portraits/women/76.jpg', interestedIn: 'male', ageMin: 27, ageMax: 38, venueId: 'sekforde', modes: ['dating','networking'], role: 'Commercial barrister', partySize: null },
+  { firstName: 'Nora', age: 33, gender: 'female', bio: 'Sommelier. Ask me for a recommendation.', photo: 'https://randomuser.me/api/portraits/women/90.jpg', interestedIn: 'male', ageMin: 30, ageMax: 42, venueId: 'sekforde', modes: ['dating','networking','friends'], role: 'Sommelier & wine writer', partySize: 1 },
+  { firstName: 'Ethan', age: 31, gender: 'male', bio: 'Engineer. Long day. Pint of Guinness.', photo: 'https://randomuser.me/api/portraits/men/11.jpg', interestedIn: 'female', ageMin: 26, ageMax: 36, venueId: 'sekforde', modes: ['dating','networking'], role: 'Software engineer at a fintech', partySize: null },
+  { firstName: 'Felix', age: 34, gender: 'male', bio: 'Writer. Notebook in hand.', photo: 'https://randomuser.me/api/portraits/men/47.jpg', interestedIn: 'female', ageMin: 28, ageMax: 40, venueId: 'sekforde', modes: ['dating','friends'], role: null, partySize: 2 },
+];
+
+// Allowed vocabulary for safe post-match cues. No free text — this list is the whole language.
+const ALLOWED_CUES = [
+  'By the bar', 'By the window', 'By the fireplace', 'In the beer garden', 'Upstairs', 'By the door', 'In the snug',
+  'Wearing black', 'Wearing white', 'Wearing red', 'Wearing blue', 'In a green jumper', 'In a denim jacket',
+  "I'll wave", "I'll come to you", 'Just ordering a drink', 'Give me two minutes', 'On my way now',
 ];
 
 async function ensureSeed(db) {
@@ -59,8 +66,10 @@ async function ensureSeed(db) {
       gender: u.gender,
       bio: u.bio,
       photo: u.photo,
-      modes: ['dating'],
+      modes: u.modes || ['dating'],
       datingPrefs: { interestedIn: u.interestedIn, ageMin: u.ageMin, ageMax: u.ageMax },
+      friendProfile: u.partySize ? { partySize: u.partySize } : null,
+      networkingProfile: u.role ? { role: u.role } : null,
       isSeed: true,
       createdAt: now,
       _seedVenue: u.venueId,
@@ -74,6 +83,18 @@ async function ensureSeed(db) {
       startedAt: now,
     }));
     await db.collection('sessions').insertMany(sessions);
+  } else {
+    // Idempotent migration: ensure existing seed users have modes/friend/networking profiles
+    for (const u of SEED_USERS) {
+      await db.collection('users').updateOne(
+        { firstName: u.firstName, isSeed: true },
+        { $set: {
+            modes: u.modes || ['dating'],
+            friendProfile: u.partySize ? { partySize: u.partySize } : null,
+            networkingProfile: u.role ? { role: u.role } : null,
+          } }
+      );
+    }
   }
 }
 
@@ -145,13 +166,15 @@ async function handle(request, { params }) {
     }
 
     if (method === 'POST' && path === 'profile') {
-      const { userId, firstName, age, gender, bio, photo, modes, datingPrefs } = body;
+      const { userId, firstName, age, gender, bio, photo, modes, datingPrefs, friendProfile, networkingProfile } = body;
       if (!userId || !firstName || !age || !gender) return err('missing required fields');
       const update = {
         firstName, age: Number(age), gender, bio: bio || '',
         photo: photo || null,
         modes: modes && modes.length ? modes : ['dating'],
         datingPrefs: datingPrefs || null,
+        friendProfile: friendProfile || null,
+        networkingProfile: networkingProfile || null,
         updatedAt: Date.now(),
       };
       await db.collection('users').updateOne({ id: userId }, { $set: update }, { upsert: true });
@@ -167,7 +190,7 @@ async function handle(request, { params }) {
     }
 
     if (method === 'GET' && path === 'feed') {
-      const { userId, venueId } = q;
+      const { userId, venueId, mode = 'dating' } = q;
       if (!userId || !venueId) return err('userId and venueId required');
       const me = await db.collection('users').findOne({ id: userId });
       if (!me) return err('user not found', 404);
@@ -175,6 +198,57 @@ async function handle(request, { params }) {
       const activeSessions = await db.collection('sessions').find({ venueId, active: true }).toArray();
       const userIds = activeSessions.map(s => s.userId).filter(x => x !== userId);
       const usersHere = await db.collection('users').find({ id: { $in: userIds } }, { projection: { _id: 0 } }).toArray();
+
+      // === FRIENDS mode ===
+      if (mode === 'friends') {
+        const candidates = usersHere.filter(u => (u.modes || []).includes('friends'));
+        const myLikes = await db.collection('likes').find({ fromUserId: userId, venueId, mode: 'friends' }).toArray();
+        const likedIds = new Set(myLikes.map(l => l.toUserId));
+        const list = candidates.filter(c => !likedIds.has(c.id));
+        // Also surface incoming invites (pending likes to me in this mode)
+        const incoming = await db.collection('likes').find({ toUserId: userId, venueId, mode: 'friends', status: 'pending' }).toArray();
+        const fromUsers = await db.collection('users').find({ id: { $in: incoming.map(l => l.fromUserId) } }, { projection: { _id: 0 } }).toArray();
+        const fmap = Object.fromEntries(fromUsers.map(u => [u.id, u]));
+        return ok({
+          mode: 'friends',
+          role: 'browser',
+          venueLive: activeSessions.length,
+          candidates: list.map(c => ({
+            id: c.id, firstName: c.firstName, age: c.age, bio: c.bio, photo: c.photo,
+            partySize: c.friendProfile?.partySize || 1,
+          })),
+          incoming: incoming.map(l => {
+            const u = fmap[l.fromUserId] || {};
+            return { likeId: l.id, firstName: u.firstName, age: u.age, photo: u.photo, partySize: u.friendProfile?.partySize || 1, bio: u.bio };
+          }),
+        });
+      }
+
+      // === NETWORKING mode ===
+      if (mode === 'networking') {
+        const candidates = usersHere.filter(u => (u.modes || []).includes('networking'));
+        const myLikes = await db.collection('likes').find({ fromUserId: userId, venueId, mode: 'networking' }).toArray();
+        const likedIds = new Set(myLikes.map(l => l.toUserId));
+        const list = candidates.filter(c => !likedIds.has(c.id));
+        const incoming = await db.collection('likes').find({ toUserId: userId, venueId, mode: 'networking', status: 'pending' }).toArray();
+        const fromUsers = await db.collection('users').find({ id: { $in: incoming.map(l => l.fromUserId) } }, { projection: { _id: 0 } }).toArray();
+        const fmap = Object.fromEntries(fromUsers.map(u => [u.id, u]));
+        return ok({
+          mode: 'networking',
+          role: 'browser',
+          venueLive: activeSessions.length,
+          candidates: list.map(c => ({
+            id: c.id, firstName: c.firstName, age: c.age, bio: c.bio, photo: c.photo,
+            role: c.networkingProfile?.role || null,
+          })),
+          incoming: incoming.map(l => {
+            const u = fmap[l.fromUserId] || {};
+            return { likeId: l.id, firstName: u.firstName, age: u.age, photo: u.photo, role: u.networkingProfile?.role || null, bio: u.bio };
+          }),
+        });
+      }
+
+      // === DATING mode (default) ===
       const myPrefs = me.datingPrefs || {};
 
       if (me.gender !== 'male') {
@@ -190,17 +264,18 @@ async function handle(request, { params }) {
           if (theirPrefs.ageMax && me.age > theirPrefs.ageMax) return false;
           return true;
         });
-        const myLikes = await db.collection('likes').find({ fromUserId: userId, venueId }).toArray();
+        const myLikes = await db.collection('likes').find({ fromUserId: userId, venueId, mode: { $in: ['dating', null] } }).toArray();
         const likedIds = new Set(myLikes.map(l => l.toUserId));
         const list = candidates.filter(c => !likedIds.has(c.id));
         return ok({
+          mode: 'dating',
           role: 'browser',
           venueLive: activeSessions.length,
           candidates: list.map(c => ({ id: c.id, firstName: c.firstName, age: c.age, bio: c.bio, photo: c.photo })),
         });
       }
 
-      let incoming = await db.collection('likes').find({ toUserId: userId, venueId, status: 'pending' }).toArray();
+      let incoming = await db.collection('likes').find({ toUserId: userId, venueId, status: 'pending', mode: { $in: ['dating', null] } }).toArray();
       if (incoming.length === 0) {
         const compatibleSeedWomen = usersHere.filter(u => u.isSeed && u.gender === 'female' && (u.modes || []).includes('dating'));
         const shuffled = compatibleSeedWomen.sort(() => Math.random() - 0.5).slice(0, 2);
@@ -209,6 +284,7 @@ async function handle(request, { params }) {
           fromUserId: w.id,
           toUserId: userId,
           venueId,
+          mode: 'dating',
           status: 'pending',
           createdAt: Date.now() - Math.floor(Math.random() * 5 * 60 * 1000),
         }));
@@ -229,17 +305,17 @@ async function handle(request, { params }) {
           createdAt: l.createdAt,
         };
       });
-      return ok({ role: 'recipient', venueLive: activeSessions.length, incoming: revealed });
+      return ok({ mode: 'dating', role: 'recipient', venueLive: activeSessions.length, incoming: revealed });
     }
 
     if (method === 'POST' && path === 'likes') {
-      const { fromUserId, toUserId, venueId } = body;
+      const { fromUserId, toUserId, venueId, mode = 'dating' } = body;
       if (!fromUserId || !toUserId || !venueId) return err('missing fields');
 
-      const existing = await db.collection('likes').findOne({ fromUserId, toUserId, venueId });
+      const existing = await db.collection('likes').findOne({ fromUserId, toUserId, venueId, mode });
       if (existing) {
         const m = await db.collection('matches').findOne({
-          venueId,
+          venueId, mode,
           $or: [
             { userA: fromUserId, userB: toUserId },
             { userA: toUserId, userB: fromUserId },
@@ -252,29 +328,30 @@ async function handle(request, { params }) {
         return ok({ liked: true, matched: false });
       }
 
-      const like = { id: uuid(), fromUserId, toUserId, venueId, status: 'pending', createdAt: Date.now() };
+      const like = { id: uuid(), fromUserId, toUserId, venueId, mode, status: 'pending', createdAt: Date.now() };
       await db.collection('likes').insertOne(like);
 
       const other = await db.collection('users').findOne({ id: toUserId });
       if (other && other.isSeed) {
         await db.collection('likes').updateOne({ id: like.id }, { $set: { status: 'accepted' } });
-        const match = { id: uuid(), userA: fromUserId, userB: toUserId, venueId, createdAt: Date.now(), action: null };
+        const match = { id: uuid(), userA: fromUserId, userB: toUserId, venueId, mode, createdAt: Date.now(), action: null };
         await db.collection('matches').insertOne(match);
         return ok({
           liked: true,
           matched: true,
           match: { ...match, _id: undefined },
-          other: { id: other.id, firstName: other.firstName, age: other.age, bio: other.bio, photo: other.photo },
+          other: { id: other.id, firstName: other.firstName, age: other.age, bio: other.bio, photo: other.photo,
+                   partySize: other.friendProfile?.partySize, role: other.networkingProfile?.role },
         });
       }
 
-      const reverse = await db.collection('likes').findOne({ fromUserId: toUserId, toUserId: fromUserId, venueId });
+      const reverse = await db.collection('likes').findOne({ fromUserId: toUserId, toUserId: fromUserId, venueId, mode });
       if (reverse) {
         await db.collection('likes').updateMany(
-          { venueId, $or: [{ id: like.id }, { id: reverse.id }] },
+          { venueId, mode, $or: [{ id: like.id }, { id: reverse.id }] },
           { $set: { status: 'accepted' } }
         );
-        const match = { id: uuid(), userA: fromUserId, userB: toUserId, venueId, createdAt: Date.now(), action: null };
+        const match = { id: uuid(), userA: fromUserId, userB: toUserId, venueId, mode, createdAt: Date.now(), action: null };
         await db.collection('matches').insertOne(match);
         const otherU = await db.collection('users').findOne({ id: toUserId }, { projection: { _id: 0 } });
         return ok({ liked: true, matched: true, match: { ...match, _id: undefined }, other: otherU });
@@ -325,6 +402,52 @@ async function handle(request, { params }) {
       if (!['heading_over', 'five_minutes', 'not_now'].includes(action)) return err('bad action');
       await db.collection('matches').updateOne({ id: matchId }, { $set: { [`actions.${userId}`]: action, actionAt: Date.now() } });
       return ok({ ok: true });
+    }
+
+    // ===== Cues (post-match constrained messages) =====
+    // Server enforces the allowlist so no free-text abuse is possible.
+    if (method === 'GET' && path === 'cues/allowed') {
+      return ok({ cues: ALLOWED_CUES });
+    }
+
+    if (method === 'POST' && path === 'messages') {
+      const { matchId, fromUserId, cue } = body;
+      if (!matchId || !fromUserId || !cue) return err('missing fields');
+      if (!ALLOWED_CUES.includes(cue)) return err('cue not allowed');
+      const match = await db.collection('matches').findOne({ id: matchId });
+      if (!match) return err('match not found', 404);
+      if (match.userA !== fromUserId && match.userB !== fromUserId) return err('not your match', 403);
+      const toUserId = match.userA === fromUserId ? match.userB : match.userA;
+      const msg = { id: uuid(), matchId, fromUserId, toUserId, venueId: match.venueId, cue, createdAt: Date.now() };
+      await db.collection('messages').insertOne(msg);
+
+      // If the other side is a seed user, auto-echo a plausible cue back ~2s later so the demo feels alive.
+      const other = await db.collection('users').findOne({ id: toUserId });
+      if (other && other.isSeed) {
+        const echoPool = ['By the bar', 'By the window', 'Wearing black', "I'll wave", 'Give me two minutes', 'On my way now'];
+        const echo = echoPool[Math.floor(Math.random() * echoPool.length)];
+        const echoMsg = {
+          id: uuid(), matchId, fromUserId: toUserId, toUserId: fromUserId,
+          venueId: match.venueId, cue: echo, createdAt: Date.now() + 2000,
+        };
+        await db.collection('messages').insertOne(echoMsg);
+      }
+      return ok({ ok: true, message: { ...msg, _id: undefined } });
+    }
+
+    if (method === 'GET' && path === 'messages') {
+      const { matchId, userId } = q;
+      if (!matchId || !userId) return err('missing');
+      const match = await db.collection('matches').findOne({ id: matchId });
+      if (!match) return err('match not found', 404);
+      if (match.userA !== userId && match.userB !== userId) return err('not your match', 403);
+      // Only return messages whose createdAt is <= now (so scheduled echos appear at the right time)
+      const now = Date.now();
+      const list = await db.collection('messages').find(
+        { matchId, createdAt: { $lte: now } },
+        { projection: { _id: 0 } }
+      ).sort({ createdAt: 1 }).toArray();
+      return ok({ messages: list });
     }
 
     if (method === 'GET' && (path === '' || path === 'health')) {
