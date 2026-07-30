@@ -53,9 +53,10 @@ async function sendPushToUser(db, userId, payload) {
 }
 
 const VENUES = [
-  { id: 'purpleowl', name: 'The Purple Owl', area: 'Wandsworth', address: 'Unit 1, Delta Business Park, 10 Smugglers Way, London SW18 1EG', type: 'bar', active: true, lat: 51.460329, lng: -0.191173, radius: 200 },
-  // Other venues kept in code but deactivated for pilot — reactivate later by flipping active:true
-  { id: 'alma', name: 'The Alma', area: 'Wandsworth', address: '499 Old York Rd, London SW18 1TF', type: 'pub', active: false, lat: 51.4593, lng: -0.1900, radius: 150 },
+  { id: 'alma', name: 'The Alma', area: 'Wandsworth', address: '499 Old York Rd, London SW18 1TF', type: 'pub', active: true, lat: 51.46063, lng: -0.18767, radius: 200 },
+  { id: 'purpleowl', name: 'The Purple Owl', area: 'Wandsworth', address: 'Unit 1, Delta Business Park, 10 Smugglers Way, London SW18 1EG', type: 'bar', active: true, lat: 51.46297, lng: -0.19016, radius: 200 },
+  { id: 'kingsarms', name: "King's Arms", area: 'Wandsworth', address: '96 Wandsworth High St, London SW18', type: 'pub', active: true, lat: 51.45772, lng: -0.19417, radius: 200 },
+  // Deactivated for pilot — flip active:true to restore
   { id: 'ivy', name: 'The Ivy House', area: 'Nunhead', address: '40 Stuart Rd, London SE15 3BE', type: 'pub', active: false, lat: 51.4676, lng: -0.0512, radius: 150 },
   { id: 'sekforde', name: 'The Sekforde', area: 'Clerkenwell', address: '34 Sekforde St, London EC1R 0HA', type: 'pub', active: false, lat: 51.5241, lng: -0.1054, radius: 150 },
 ];
