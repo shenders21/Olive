@@ -289,6 +289,9 @@ function App() {
               showPicker={showPicker}
               setShowPicker={setShowPicker}
               onConfirm={checkIn}
+              onOpenSafety={() => setShowSafety(true)}
+              onOpenGuidelines={() => setShowGuidelines(true)}
+              onOpenIosInstall={() => setShowIosInstall(true)}
             />
           </motion.div>
         )}
@@ -336,7 +339,7 @@ function App() {
 }
 
 // ---------- Check-in ----------
-function CheckIn({ venues, located, locationStatus, showPicker, setShowPicker, onConfirm, onOpenSafety, onOpenGuidelines }) {
+function CheckIn({ venues, located, locationStatus, showPicker, setShowPicker, onConfirm, onOpenSafety, onOpenGuidelines, onOpenIosInstall }) {
   // Determine primary candidate: nearest venue that is 'nearby' (within its radius)
   const nearby = venues.filter(v => v.nearby)
   const primary = nearby[0] || venues[0]
@@ -359,18 +362,21 @@ function CheckIn({ venues, located, locationStatus, showPicker, setShowPicker, o
 
       {isIosSafari() && !isStandalone() && (
         <button
-          onClick={onOpenSafety === undefined ? undefined : () => { window.dispatchEvent(new CustomEvent('olive-open-ios-install')) }}
-          className="w-full mb-4 rounded-2xl border border-gold/40 bg-gold/10 px-4 py-3 flex items-start gap-3 text-left"
+          onClick={onOpenIosInstall}
+          className="w-full mb-4 rounded-2xl border border-gold/40 bg-gold/10 hover:bg-gold/15 px-4 py-3 flex items-start gap-3 text-left transition"
         >
-          <div className="h-8 w-8 rounded-full bg-olive text-cream flex items-center justify-center shrink-0">
+          <div className="h-9 w-9 rounded-full bg-olive text-cream flex items-center justify-center shrink-0">
             <Bell className="h-4 w-4" />
           </div>
           <div className="flex-1">
-            <div className="font-serif text-base text-olive-deep leading-tight">Add Olive to your Home Screen</div>
-            <div className="text-[11px] text-olive/70 mt-0.5">
-              iPhone can only send notifications from installed apps. Tap Share → Add to Home Screen — then put your phone in your pocket.
+            <div className="font-serif text-base text-olive-deep leading-tight">
+              Want to know when someone likes you?
+            </div>
+            <div className="text-[12px] text-olive/75 mt-0.5 leading-snug">
+              iPhones only send notifications from installed apps. Tap here for the 3-step guide — then you can put your phone away and enjoy the pub.
             </div>
           </div>
+          <ChevronRight className="h-4 w-4 text-olive/50 shrink-0 mt-1" />
         </button>
       )}
 
@@ -1421,28 +1427,30 @@ function IosInstallSheet({ onClose }) {
       >
         <div className="olive-gradient text-cream px-6 py-4 flex items-center gap-3">
           <div className="flex-1">
-            <div className="text-[10px] uppercase tracking-[0.25em] text-cream/60">Put Olive on your home screen</div>
-            <div className="font-serif text-2xl mt-0.5">One tap next time</div>
+            <div className="text-[10px] uppercase tracking-[0.25em] text-cream/60">So you can put your phone away</div>
+            <div className="font-serif text-2xl mt-0.5">Get notified when someone likes you</div>
           </div>
           <button onClick={onClose} className="text-cream/60 hover:text-cream p-1"><X className="h-4 w-4" /></button>
         </div>
         <div className="px-6 py-5 space-y-3 text-sm text-olive/85">
-          <p>To install Olive on your iPhone and get notifications:</p>
-          <ol className="space-y-2 pl-2">
+          <p className="text-olive-deep">
+            To get a buzz when someone at the pub likes you, you need to add Olive to your iPhone&apos;s home screen. It takes about ten seconds:
+          </p>
+          <ol className="space-y-3 pl-2">
             <li className="flex gap-3 items-start">
               <span className="h-6 w-6 rounded-full bg-olive text-cream text-xs flex items-center justify-center shrink-0 font-medium">1</span>
               <span>Tap the <Share className="h-3.5 w-3.5 inline mx-1" /><strong>Share</strong> button at the bottom of Safari.</span>
             </li>
             <li className="flex gap-3 items-start">
               <span className="h-6 w-6 rounded-full bg-olive text-cream text-xs flex items-center justify-center shrink-0 font-medium">2</span>
-              <span>Scroll and tap <Plus className="h-3.5 w-3.5 inline mx-1" /><strong>Add to Home Screen</strong>.</span>
+              <span>Scroll down and tap <Plus className="h-3.5 w-3.5 inline mx-1" /><strong>Add to Home Screen</strong>.</span>
             </li>
             <li className="flex gap-3 items-start">
               <span className="h-6 w-6 rounded-full bg-olive text-cream text-xs flex items-center justify-center shrink-0 font-medium">3</span>
-              <span>Open Olive from your home screen — that&apos;s the version that can send you notifications.</span>
+              <span>Open Olive from your <strong>home screen</strong> (not Safari) — then tap the bell to allow notifications.</span>
             </li>
           </ol>
-          <p className="text-xs text-olive/60 italic pt-2">Then you can put your phone in your pocket and enjoy the pub.</p>
+          <p className="text-xs text-olive/60 italic pt-2">Then you can pop your phone in your pocket and enjoy the pub. We&apos;ll buzz you when someone here would like to meet.</p>
         </div>
         <div className="px-6 pb-6 pt-2">
           <Button onClick={onClose} className="w-full h-11 rounded-full bg-olive hover:bg-olive-deep text-cream">Got it</Button>
