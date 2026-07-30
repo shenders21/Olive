@@ -53,14 +53,19 @@ async function sendPushToUser(db, userId, payload) {
 }
 
 const VENUES = [
-  { id: 'alma', name: 'The Alma', area: 'Wandsworth', address: '499 Old York Rd, London SW18 1TF', type: 'pub', active: true, lat: 51.4593, lng: -0.1900, radius: 150 },
-  { id: 'ivy', name: 'The Ivy House', area: 'Nunhead', address: '40 Stuart Rd, London SE15 3BE', type: 'pub', active: true, lat: 51.4676, lng: -0.0512, radius: 150 },
-  { id: 'sekforde', name: 'The Sekforde', area: 'Clerkenwell', address: '34 Sekforde St, London EC1R 0HA', type: 'pub', active: true, lat: 51.5241, lng: -0.1054, radius: 150 },
   { id: 'purpleowl', name: 'The Purple Owl', area: 'Wandsworth', address: 'Unit 1, Delta Business Park, 10 Smugglers Way, London SW18 1EG', type: 'bar', active: true, lat: 51.460329, lng: -0.191173, radius: 200 },
+  // Other venues kept in code but deactivated for pilot — reactivate later by flipping active:true
+  { id: 'alma', name: 'The Alma', area: 'Wandsworth', address: '499 Old York Rd, London SW18 1TF', type: 'pub', active: false, lat: 51.4593, lng: -0.1900, radius: 150 },
+  { id: 'ivy', name: 'The Ivy House', area: 'Nunhead', address: '40 Stuart Rd, London SE15 3BE', type: 'pub', active: false, lat: 51.4676, lng: -0.0512, radius: 150 },
+  { id: 'sekforde', name: 'The Sekforde', area: 'Clerkenwell', address: '34 Sekforde St, London EC1R 0HA', type: 'pub', active: false, lat: 51.5241, lng: -0.1054, radius: 150 },
 ];
 
-const SEED_USERS = [
-  { firstName: 'Sophie', age: 28, gender: 'female', bio: 'Reading Sally Rooney with a negroni.', photo: 'https://randomuser.me/api/portraits/women/44.jpg', interestedIn: 'male', ageMin: 26, ageMax: 38, venueId: 'alma', modes: ['dating'], role: null, partySize: null },
+// Seed users disabled for the pilot — only real people will appear in venues.
+const SEED_USERS = [];
+
+const SEED_USERS_LEGACY_REMOVED = [
+  // The following seed users have been removed for the pilot.
+  // Kept as a comment for future reference — restore them into SEED_USERS if you want a populated demo later.
   { firstName: 'Grace', age: 31, gender: 'female', bio: 'Architect. Just finished a run.', photo: 'https://randomuser.me/api/portraits/women/68.jpg', interestedIn: 'male', ageMin: 28, ageMax: 40, venueId: 'alma', modes: ['dating','networking'], role: 'Architect at Foster & Partners', partySize: null },
   { firstName: 'Isla', age: 26, gender: 'female', bio: 'Loves pubs with fireplaces.', photo: 'https://randomuser.me/api/portraits/women/32.jpg', interestedIn: 'male', ageMin: 25, ageMax: 34, venueId: 'alma', modes: ['dating','friends'], role: null, partySize: 2 },
   { firstName: 'James', age: 30, gender: 'male', bio: 'Doctor. Off shift. Reading Le Carre.', photo: 'https://randomuser.me/api/portraits/men/45.jpg', interestedIn: 'female', ageMin: 25, ageMax: 34, venueId: 'alma', modes: ['dating'], role: null, partySize: null },
@@ -102,7 +107,19 @@ function containsBlocked(text) {
 }
 
 async function ensureSeed(db) {
-  // Upsert every venue (adds new venues on deploy, keeps existing ones fresh)
+  // For the pilot: wipe any seed users + their sessions on every boot.
+  // (Cheap, idempotent — real users are untouched because they have isSeed:false.)
+  const oldSeedUsers = await db.collection('users').find({ isSeed: true }).toArray();
+  if (oldSeedUsers.length > 0) {
+    const oldIds = oldSeedUsers.map(u => u.id);
+    await db.collection('users').deleteMany({ isSeed: true });
+    await db.collection('sessions').deleteMany({ userId: { $in: oldIds } });
+    await db.collection('likes').deleteMany({ $or: [{ fromUserId: { $in: oldIds } }, { toUserId: { $in: oldIds } }] });
+    await db.collection('matches').deleteMany({ $or: [{ userA: { $in: oldIds } }, { userB: { $in: oldIds } }] });
+    await db.collection('messages').deleteMany({ $or: [{ fromUserId: { $in: oldIds } }, { toUserId: { $in: oldIds } }] });
+  }
+
+  // Upsert every venue (adds new venues on deploy, keeps existing ones fresh, deactivates removed ones)
   for (const v of VENUES) {
     await db.collection('venues').updateOne(
       { id: v.id },
@@ -111,23 +128,18 @@ async function ensureSeed(db) {
     );
   }
 
-  // Upsert every seed user + ensure they have an active session at their venue
+  // Seed users (currently empty for the pilot) — kept idempotent for when we restore them later
   const now = Date.now();
   for (const u of SEED_USERS) {
     const key = { firstName: u.firstName, isSeed: true, _seedVenue: u.venueId };
     const existing = await db.collection('users').findOne(key);
     const profile = {
-      firstName: u.firstName,
-      age: u.age,
-      gender: u.gender,
-      bio: u.bio,
-      photo: u.photo,
+      firstName: u.firstName, age: u.age, gender: u.gender, bio: u.bio, photo: u.photo,
       modes: u.modes || ['dating'],
       datingPrefs: { interestedIn: u.interestedIn, ageMin: u.ageMin, ageMax: u.ageMax },
       friendProfile: u.partySize ? { partySize: u.partySize } : null,
       networkingProfile: u.role ? { role: u.role } : null,
-      isSeed: true,
-      _seedVenue: u.venueId,
+      isSeed: true, _seedVenue: u.venueId,
     };
     let userId;
     if (existing) {
@@ -137,12 +149,9 @@ async function ensureSeed(db) {
       userId = uuid();
       await db.collection('users').insertOne({ ...profile, id: userId, createdAt: now });
     }
-    // Ensure they have an active session at their venue
     const sess = await db.collection('sessions').findOne({ userId, venueId: u.venueId, active: true });
     if (!sess) {
-      await db.collection('sessions').insertOne({
-        id: uuid(), userId, venueId: u.venueId, active: true, startedAt: now,
-      });
+      await db.collection('sessions').insertOne({ id: uuid(), userId, venueId: u.venueId, active: true, startedAt: now });
     }
   }
 }

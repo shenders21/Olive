@@ -357,6 +357,23 @@ function CheckIn({ venues, located, locationStatus, showPicker, setShowPicker, o
         Welcome
       </SectionTitle>
 
+      {isIosSafari() && !isStandalone() && (
+        <button
+          onClick={onOpenSafety === undefined ? undefined : () => { window.dispatchEvent(new CustomEvent('olive-open-ios-install')) }}
+          className="w-full mb-4 rounded-2xl border border-gold/40 bg-gold/10 px-4 py-3 flex items-start gap-3 text-left"
+        >
+          <div className="h-8 w-8 rounded-full bg-olive text-cream flex items-center justify-center shrink-0">
+            <Bell className="h-4 w-4" />
+          </div>
+          <div className="flex-1">
+            <div className="font-serif text-base text-olive-deep leading-tight">Add Olive to your Home Screen</div>
+            <div className="text-[11px] text-olive/70 mt-0.5">
+              iPhone can only send notifications from installed apps. Tap Share → Add to Home Screen — then put your phone in your pocket.
+            </div>
+          </div>
+        </button>
+      )}
+
       {/* Location status line */}
       <div className="text-center -mt-4 mb-4 text-[11px] uppercase tracking-[0.2em]">
         {locationStatus === 'asking' && (
@@ -403,48 +420,38 @@ function CheckIn({ venues, located, locationStatus, showPicker, setShowPicker, o
               >
                 <Check className="h-4 w-4 mr-2" /> Yes, I&apos;m at {primary.name}
               </Button>
-              <button
-                onClick={() => setShowPicker(true)}
-                className="text-xs uppercase tracking-[0.15em] text-olive/60 hover:text-olive py-2"
-              >
-                Choose another venue
-              </button>
             </div>
           </div>
-          {nearby.length > 1 && (
-            <div className="mt-3 text-center text-[11px] text-olive/50">
-              {nearby.length - 1} other Olive {nearby.length - 1 === 1 ? 'venue is' : 'venues are'} within a short walk
-            </div>
-          )}
         </motion.div>
       ) : (
-        <div className="space-y-3">
-          <p className="text-center text-sm text-olive/70">
-            {noNearbyMessage
-              ? 'No Olive venues within 150m. Pick where you are:'
-              : "Choose the venue you're in."}
-          </p>
-          {venues.map(v => (
-            <button key={v.id} onClick={() => onConfirm(v)}
-              className={`w-full rounded-2xl border bg-cream px-5 py-4 flex items-center gap-3 hover:border-gold/60 transition-colors text-left ${v.nearby ? 'border-gold/60' : 'border-olive/15'}`}>
-              <MapPin className={`h-5 w-5 ${v.nearby ? 'text-gold-dark' : 'text-olive/60'}`} />
-              <div className="flex-1">
-                <div className="font-serif text-xl leading-tight flex items-center gap-2">
-                  {v.name}
-                  {v.nearby && <span className="text-[10px] uppercase tracking-[0.15em] text-gold-dark">Here</span>}
-                </div>
-                <div className="text-xs text-olive/60">
-                  {v.area} · {v.liveCount} here now
-                  {v.distance != null && <> · {formatDistance(v.distance)}</>}
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-olive/40" />
-            </button>
-          ))}
-          {showPicker && (
-            <button onClick={() => setShowPicker(false)} className="w-full text-xs uppercase tracking-[0.15em] text-olive/60 hover:text-olive py-2">
-              Back
-            </button>
+        <div className="rounded-2xl border border-olive/15 bg-cream p-6 text-center">
+          <div className="h-12 w-12 rounded-full bg-olive/10 text-olive mx-auto mb-3 flex items-center justify-center">
+            <MapPin className="h-5 w-5" />
+          </div>
+          {locationStatus === 'asking' ? (
+            <>
+              <div className="font-serif text-xl text-olive-deep">Finding your venue</div>
+              <p className="text-sm text-olive/70 mt-2">Please allow location access when your browser asks.</p>
+            </>
+          ) : (locationStatus === 'denied' || locationStatus === 'unavailable') ? (
+            <>
+              <div className="font-serif text-xl text-olive-deep">Location is required</div>
+              <p className="text-sm text-olive/70 mt-2 leading-relaxed">
+                Olive only works when you&apos;re inside a participating venue. Please turn on location in your
+                phone&apos;s settings, then reload this page.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="font-serif text-xl text-olive-deep">You&apos;re not at an Olive venue</div>
+              <p className="text-sm text-olive/70 mt-2 leading-relaxed">
+                You need to be inside a participating venue to check in.
+                {venues[0]?.distance != null && (
+                  <> The nearest is <strong>{venues[0].name}</strong> — {formatDistance(venues[0].distance)}.</>
+                )}
+              </p>
+              <p className="text-[11px] text-olive/50 mt-3">Move closer and reload to try again.</p>
+            </>
           )}
         </div>
       )}
