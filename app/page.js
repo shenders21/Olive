@@ -396,7 +396,7 @@ function CheckIn({ venues, located, locationStatus, showPicker, setShowPicker, o
         )}
       </div>
 
-      {showAsAppearsToBe && primary ? (
+      {showAsAppearsToBe && nearby.length === 1 && primary ? (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <div className="rounded-2xl border border-olive/15 bg-cream shadow-[0_1px_0_rgba(61,74,42,0.08)] overflow-hidden">
             <div className="olive-gradient text-cream px-5 py-4 flex items-center gap-3">
@@ -429,6 +429,27 @@ function CheckIn({ venues, located, locationStatus, showPicker, setShowPicker, o
             </div>
           </div>
         </motion.div>
+      ) : nearby.length > 1 ? (
+        <div className="space-y-3">
+          <div className="text-center">
+            <div className="font-serif text-xl text-olive-deep">Which one are you at?</div>
+            <p className="text-xs text-olive/60 mt-1">You&apos;re close to more than one Olive venue.</p>
+          </div>
+          {nearby.map(v => (
+            <button key={v.id} onClick={() => onConfirm(v)}
+              className="w-full rounded-2xl border border-gold/60 bg-cream px-5 py-4 flex items-center gap-3 hover:bg-gold/5 transition-colors text-left">
+              <MapPin className="h-5 w-5 text-gold-dark" />
+              <div className="flex-1">
+                <div className="font-serif text-xl leading-tight">{v.name}</div>
+                <div className="text-xs text-olive/60">
+                  {v.area} · {v.liveCount} here now
+                  {v.distance != null && <> · {formatDistance(v.distance)}</>}
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-olive/40" />
+            </button>
+          ))}
+        </div>
       ) : (
         <div className="rounded-2xl border border-olive/15 bg-cream p-6 text-center">
           <div className="h-12 w-12 rounded-full bg-olive/10 text-olive mx-auto mb-3 flex items-center justify-center">
@@ -1434,7 +1455,7 @@ function IosInstallSheet({ onClose }) {
         </div>
         <div className="px-6 py-5 space-y-3 text-sm text-olive/85">
           <p className="text-olive-deep">
-            To get a buzz when someone at the pub likes you, you need to add Olive to your iPhone&apos;s home screen. It takes about ten seconds:
+            To get a buzz when someone at the pub likes you, add this website to your iPhone&apos;s home screen. It takes about ten seconds:
           </p>
           <ol className="space-y-3 pl-2">
             <li className="flex gap-3 items-start">
