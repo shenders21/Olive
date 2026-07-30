@@ -34,14 +34,14 @@ const OliveWordmark = ({ size = 'md' }) => {
 
 const Shell = ({ children, dark }) => (
   <div className={`min-h-screen w-full ${dark ? 'olive-gradient text-cream' : 'paper text-olive-deep'}`}>
-    <div className="mx-auto w-full max-w-md px-5 pt-14 pb-10 safe-top safe-bottom">
+    <div className="mx-auto w-full max-w-md px-5 pt-20 pb-10 safe-top safe-bottom">
       {children}
     </div>
   </div>
 )
 
 const BrandHeader = ({ dark }) => (
-  <div className="flex items-center justify-center pb-6">
+  <div className="flex items-center justify-center pb-8">
     <OliveWordmark size="md" />
   </div>
 )
